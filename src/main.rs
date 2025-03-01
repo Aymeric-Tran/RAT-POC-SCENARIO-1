@@ -1,9 +1,7 @@
-use reqwest::Error;
-
 mod connexion;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() {
     match connexion::get_directives().await {
         Ok(commands) => {
             println!("Commandes récupérées :");
@@ -14,5 +12,4 @@ async fn main() -> Result<(), Error> {
 
         Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
     }
-    Ok(())
 }
