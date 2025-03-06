@@ -1,20 +1,14 @@
 use reqwest::Error;
 use serde::Deserialize;
-use std::ops::Deref;
 
-#[derive(Deserialize, Debug)]
-#[serde(transparent)]
-pub struct Directive(Vec<String>);
-
-impl Deref for Directive {
-    type Target = Vec<String>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+#[derive(Deserialize)]
+struct Directive {
+    id: String,
+    command: String,
 }
 
-pub async fn get_directives() -> Result<Directive, Error> {
+
+pub async fn get_directives() -> Result<Vec<String>, Error> {
     let url = "https://127.0.0.1:3030/directives";
 
     let client = reqwest::Client::builder()
@@ -23,7 +17,11 @@ pub async fn get_directives() -> Result<Directive, Error> {
 
     let response = client.get(url).send().await?.error_for_status()?;
 
-    let commands: Directive = response.json().await?;
+    let directives: Vec<Directive> = response.json().await?;
+
+    let commands: Vec<String> = directives.into_iter()
+        .map(|directive| directive.command)
+        .collect();
     
     Ok(commands)
 }
