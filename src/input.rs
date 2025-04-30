@@ -19,7 +19,12 @@ fn callback(event: Event) {
 
 fn key_to_string(key: Key) -> Option<String> {
     let key_str = format!("{:?}", key);
-    let cleaned_key = key_str.strip_prefix("Key").unwrap_or(&key_str).to_string();
+    let cleaned_key = key_str
+        .strip_prefix("Key")
+        .or_else(|| key_str.strip_prefix("Num"))
+        .or_else(|| key_str.strip_prefix("Kp"))
+        .unwrap_or(&key_str)
+        .to_string();
 
     Some(match key {
         Key::Return => "\n".to_string(),
@@ -30,6 +35,8 @@ fn key_to_string(key: Key) -> Option<String> {
         Key::ShiftLeft | Key::ShiftRight => "[SHIFT]".to_string(),
         Key::Alt => "[ALT]".to_string(),
         Key::Tab => "[TAB]".to_string(),
+        Key::Dot => ".".to_string(),
+        Key::SemiColon => ";".to_string(),
         _ => cleaned_key,
     })
 }
