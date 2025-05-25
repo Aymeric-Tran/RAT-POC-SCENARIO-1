@@ -66,5 +66,4 @@ pub async fn start_keylogger(duration_sec: u64) {
     let mut logs = KEY_LOGS.lock().unwrap();
     logs.clear();
 
-    println!("fini");
 }
