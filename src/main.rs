@@ -18,7 +18,7 @@ async fn main() {
                         tokio::spawn(async {
                             screenshot::take_screenshot().await;
                         });
-                    },
+                    }
                     _ => println!("Commande inconnue: {}", command),
                 }
             }
