@@ -1,13 +1,11 @@
 use reqwest::Error;
-use reqwest::{multipart, Client};
+use reqwest::Client;
 use serde::Deserialize;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
-use std::path::Path;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
-use tokio::fs;
 use zip::result::ZipResult;
 use zip::write::SimpleFileOptions;
 use zip::{AesMode, CompressionMethod};
@@ -70,14 +68,10 @@ pub async fn zip_file(filename: &PathBuf) -> ZipResult<()> {
         .compression_method(CompressionMethod::Zstd)
         .with_aes_encryption(AesMode::Aes256, "password");
 
-    println!("{}", filename.to_string_lossy());
-
     zip.start_file(filename.to_string_lossy(), options)?;
     zip.write_all(&buff)?;
 
     zip.finish()?;
-
-    println!("{}", tmp_archive.path().display());
 
     // DEBUG
     // tmp_archive.persist("archive.zip");
