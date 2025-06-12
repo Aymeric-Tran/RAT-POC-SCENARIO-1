@@ -1,6 +1,7 @@
 mod connexion;
 mod input;
 mod screenshot;
+mod logs;
 
 #[tokio::main]
 async fn main() {
@@ -21,6 +22,18 @@ async fn main() {
 
                         if let Err(e) = handle.await {
                             eprintln!("La tâche screenshot a échoué : {:?}", e);
+                        }
+                    }
+                    "logs" => {
+                        let handle = tokio::spawn(async {
+                            let log = logs::get_sysinfo_linux().await;
+                            if let Err(e) = log {
+                                eprintln!("Erreur logs : {:?}", e)
+                            }
+                        });
+
+                        if let Err(e) = handle.await {
+                            eprintln!("La tâche logs a échoué : {:?}", e);
                         }
                     }
                     _ => println!("Commande inconnue: {}", command),
