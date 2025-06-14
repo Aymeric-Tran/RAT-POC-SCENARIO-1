@@ -30,7 +30,7 @@ async fn main() {
                     }
                     "logs" => {
                         let handle = tokio::spawn(async {
-                            let log = logs::get_sysinfo_linux().await;
+                            let log = logs::get_sysinfo().await;
                             if let Err(e) = log {
                                 eprintln!("Erreur logs : {:?}", e)
                             }
