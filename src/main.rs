@@ -10,7 +10,6 @@ async fn main() {
     match connexion::get_directives().await {
         Ok(commands) => {
             println!("Commands received: {:?}", commands);
-            
             let mut handles: Vec<JoinHandle<()>> = Vec::new();
             
             for command in commands {
@@ -48,7 +47,6 @@ async fn main() {
                     _ => println!("Commande inconnue: {}", command),
                 }
             }
-            
             for (i, handle) in handles.into_iter().enumerate() {
                 match handle.await {
                     Ok(_) => println!("Tâche {} terminée avec succès", i),
