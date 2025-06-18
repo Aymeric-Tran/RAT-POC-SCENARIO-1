@@ -46,9 +46,12 @@ async fn main() {
                         handles.push(handle);
                     }
                     "shell" => {
-                        std::thread::spawn(|| {
-                            shell::launch_shell();
+                        let handle = tokio::spawn(async {
+                            if let Err(e) = shell::launch_shell().await {
+                                eprintln!("Erreur shell : {}", e);
+                            }
                         });
+                        handles.push(handle);
                     }
                     _ => println!("Commande inconnue: {}", command),
                 }
