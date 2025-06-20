@@ -1,26 +1,17 @@
 use crate::connexion::{self, zip_file};
+use anyhow::Result;
 use screenshots::Screen;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
 
-pub async fn take_screenshot() {
-    let screens = match Screen::all() {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Erreur lors de la récupération des écrans : {}", e);
-            return;
-        }
-    };
+pub async fn take_screenshot() -> Result<()> {
+    let screens = Screen::all()?;
 
     for screen in screens {
         let image = match screen.capture() {
             Ok(img) => img,
             Err(e) => {
-                eprintln!(
-                    "Erreur lors de la capture de l'écran {} : {}",
-                    screen.display_info.id, e
-                );
-                continue;
+                return Err(e);
             }
         };
 
@@ -44,6 +35,8 @@ pub async fn take_screenshot() {
             eprintln!("Erreur lors du traitement de la capture : {}", e);
         }
     }
+
+    Ok(())
 }
 
 async fn process_screenshot(png_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {

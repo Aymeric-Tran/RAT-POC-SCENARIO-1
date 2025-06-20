@@ -21,6 +21,34 @@ struct Directive {
     // status: String,
 }
 
+pub async fn send_directive_status(
+    directive: &str,
+    status: &str,
+    message: &str,
+) -> Result<(), reqwest::Error> {
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    let body = serde_json::json!({
+        "directive": directive,
+        "status": status,
+        "message": message
+    });
+
+    let res = client
+        .post("https://172.28.161.20:3030/sync")
+        .json(&body)
+        .send()
+        .await;
+
+    if let Err(e) = res {
+        eprintln!("Erreur lors de l'envoi du statut : {:?}", e);
+    }
+
+    Ok(())
+}
+
 pub async fn get_directives() -> Result<Vec<String>, Error> {
     let url = "https://172.28.161.20:3030/directives";
 
