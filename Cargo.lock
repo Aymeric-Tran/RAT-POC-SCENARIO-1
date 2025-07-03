@@ -269,6 +269,8 @@ dependencies = [
  "if-addrs",
  "ipnetwork",
  "lazy_static",
+ "libc",
+ "ntapi",
  "rand",
  "rdev",
  "reqwest",
@@ -279,6 +281,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "walkdir",
+ "winapi",
  "winreg",
  "zip",
 ]

