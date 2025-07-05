@@ -135,11 +135,13 @@ pub async fn launch_shell() -> io::Result<()> {
     #[cfg(windows)]
     {
         use std::thread;
+        use std::os::windows::process::CommandExt;
 
         let mut child = Command::new("cmd.exe")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .creation_flags(0x08000000) //CREATE_NO_WINDOW
             .spawn()?;
 
         let mut child_stdout = child.stdout.take().unwrap();
