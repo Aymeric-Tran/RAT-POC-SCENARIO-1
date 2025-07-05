@@ -40,10 +40,10 @@ mod windows {
 
     pub fn detect_debugger_via_peb() -> bool {
         use std::mem::{size_of, zeroed};
-        use winapi::um::winnt::PROCESS_BASIC_INFORMATION;
         use winapi::um::processthreadsapi::GetCurrentProcess;
-        use winapi::um::winnt::ProcessBasicInformation;
-        use winapi::um::ntdll::NtQueryInformationProcess;
+        use ntapi::ntpsapi::PROCESS_BASIC_INFORMATION;
+        use ntapi::ntpsapi::ProcessBasicInformation;
+        use ntapi::ntpsapi::NtQueryInformationProcess;
 
         unsafe {
             let mut pbi: PROCESS_BASIC_INFORMATION = zeroed();
