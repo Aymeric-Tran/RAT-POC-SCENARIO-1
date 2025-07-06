@@ -247,7 +247,7 @@ fn key_to_string_with_modifiers(key: Key) -> Option<String> {
         | Key::Kp6
         | Key::Kp7
         | Key::Kp8
-        | Key::Kp9) => get_number_or_symbol(k, modifiers.shift_pressed),
+        | Key::Kp9) => get_number_or_symbol(k, modifiers.shift_pressed, modifiers.caps_lock_on, modifiers.alt_pressed),
 
         k @ (Key::Dot
         | Key::Comma
@@ -297,41 +297,110 @@ fn get_letter_case(letter: char, modifiers: &ModifierState) -> String {
     }
 }
 
-fn get_number_or_symbol(key: Key, shift: bool) -> String {
+fn get_number_or_symbol(key: Key, shift: bool, caps_on: bool, alt_gr: bool) -> String {
     use Key::*;
-    match (key, shift) {
-        (Num1, true) => "!".to_string(),
-        (Num2, true) => "@".to_string(),
-        (Num3, true) => "#".to_string(),
-        (Num4, true) => "$".to_string(),
-        (Num5, true) => "%".to_string(),
-        (Num6, true) => "^".to_string(),
-        (Num7, true) => "&".to_string(),
-        (Num8, true) => "*".to_string(),
-        (Num9, true) => "(".to_string(),
-        (Num0, true) => ")".to_string(),
+    match key {
+        Num1 => {
+            if alt_gr {
+                "".to_string()   
+            } else if shift ^ caps_on {
+                "1".to_string()
+            } else {
+                "&".to_string()
+            }
+        }
+        Num2 => {
+            if alt_gr {
+                "~".to_string()
+            } else if shift ^ caps_on {
+                "2".to_string()
+            } else {
+                "é".to_string()
+            }
+        }
+        Num3 => {
+            if alt_gr {
+                "#".to_string()
+            } else if shift ^ caps_on {
+                "3".to_string()
+            } else {
+                "\"".to_string()
+            }
+        }
+        Num4 => {
+            if alt_gr {
+                "{".to_string()
+            } else if shift ^ caps_on {
+                "4".to_string()
+            } else {
+                "'".to_string()
+            }
+        }
+        Num5 => {
+            if alt_gr {
+                "[".to_string()
+            } else if shift ^ caps_on {
+                "5".to_string()
+            } else {
+                "(".to_string()
+            }
+        }
+        Num6 => {
+            if alt_gr {
+                "|".to_string()
+            } else if shift ^ caps_on {
+                "6".to_string()
+            } else {
+                "-".to_string()
+            }
+        }
+        Num7 => {
+            if alt_gr {
+                "`".to_string()
+            } else if shift ^ caps_on {
+                "7".to_string()
+            } else {
+                "è".to_string()
+            }
+        }
+        Num8 => {
+            if alt_gr {
+                "\\".to_string()
+            } else if shift ^ caps_on {
+                "8".to_string()
+            } else {
+                "_".to_string()
+            }
+        }
+        Num9 => {
+            if alt_gr {
+                "^".to_string()
+            } else if shift ^ caps_on {
+                "9".to_string()
+            } else {
+                "ç".to_string()
+            }
+        }
+        Num0 => {
+            if alt_gr {
+                "@".to_string()
+            } else if shift ^ caps_on {
+                "0".to_string()
+            } else {
+                "à".to_string()
+            }
+        }
 
-        (Num0, false) => "0".to_string(),
-        (Num1, false) => "1".to_string(),
-        (Num2, false) => "2".to_string(),
-        (Num3, false) => "3".to_string(),
-        (Num4, false) => "4".to_string(),
-        (Num5, false) => "5".to_string(),
-        (Num6, false) => "6".to_string(),
-        (Num7, false) => "7".to_string(),
-        (Num8, false) => "8".to_string(),
-        (Num9, false) => "9".to_string(),
-
-        (Kp0, _) => "0".to_string(),
-        (Kp1, _) => "1".to_string(),
-        (Kp2, _) => "2".to_string(),
-        (Kp3, _) => "3".to_string(),
-        (Kp4, _) => "4".to_string(),
-        (Kp5, _) => "5".to_string(),
-        (Kp6, _) => "6".to_string(),
-        (Kp7, _) => "7".to_string(),
-        (Kp8, _) => "8".to_string(),
-        (Kp9, _) => "9".to_string(),
+        Kp0 => "0".to_string(),
+        Kp1 => "1".to_string(),
+        Kp2 => "2".to_string(),
+        Kp3 => "3".to_string(),
+        Kp4 => "4".to_string(),
+        Kp5 => "5".to_string(),
+        Kp6 => "6".to_string(),
+        Kp7 => "7".to_string(),
+        Kp8 => "8".to_string(),
+        Kp9 => "9".to_string(),
 
         _ => "".to_string(),
     }
