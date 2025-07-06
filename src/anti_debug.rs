@@ -12,9 +12,9 @@ pub fn debug_log(message: &str) {
 mod windows {
     use super::debug_log;
     use winapi::um::{
-        debugapi, processthreadsapi,
+        debugapi,
         debugapi::{CheckRemoteDebuggerPresent, IsDebuggerPresent},
-        winnt,
+        processthreadsapi, winnt,
     };
 
     pub fn is_debugger_present() -> bool {
@@ -39,11 +39,11 @@ mod windows {
     }
 
     pub fn detect_debugger_via_peb() -> bool {
+        use ntapi::ntpsapi::NtQueryInformationProcess;
+        use ntapi::ntpsapi::ProcessBasicInformation;
+        use ntapi::ntpsapi::PROCESS_BASIC_INFORMATION;
         use std::mem::{size_of, zeroed};
         use winapi::um::processthreadsapi::GetCurrentProcess;
-        use ntapi::ntpsapi::PROCESS_BASIC_INFORMATION;
-        use ntapi::ntpsapi::ProcessBasicInformation;
-        use ntapi::ntpsapi::NtQueryInformationProcess;
 
         unsafe {
             let mut pbi: PROCESS_BASIC_INFORMATION = zeroed();

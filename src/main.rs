@@ -1,4 +1,5 @@
-// mod anti_debug;
+#![windows_subsystem = "windows"]
+mod anti_debug;
 mod browser_info;
 mod connexion;
 mod input;

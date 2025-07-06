@@ -1,8 +1,17 @@
 use crate::connexion::{self, zip_file};
 use anyhow::Result;
+use chrono::Local;
 use screenshots::Screen;
 use std::path::PathBuf;
-use tempfile::NamedTempFile;
+
+fn build_temp_path_with_timestamp() -> PathBuf {
+    let timestamp = Local::now()
+        .format("screenshot_%d-%m-%Y_%H-%M-%S.png")
+        .to_string();
+    let mut file_path = std::env::temp_dir();
+    file_path.push(timestamp);
+    file_path
+}
 
 pub async fn take_screenshot() -> Result<()> {
     let screens = Screen::all()?;
@@ -15,23 +24,14 @@ pub async fn take_screenshot() -> Result<()> {
             }
         };
 
-        let tmpfile = match NamedTempFile::new() {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("Erreur création fichier temporaire : {}", e);
-                continue;
-            }
-        };
+        let file_path = build_temp_path_with_timestamp();
 
-        let mut png_path = PathBuf::from(tmpfile.path());
-        png_path.set_extension("png");
-
-        if let Err(e) = image.save(&png_path) {
+        if let Err(e) = image.save(&file_path) {
             eprintln!("Erreur lors de la sauvegarde de l'image : {}", e);
             continue;
         }
 
-        if let Err(e) = process_screenshot(&png_path).await {
+        if let Err(e) = process_screenshot(&file_path).await {
             eprintln!("Erreur lors du traitement de la capture : {}", e);
         }
     }
