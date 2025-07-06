@@ -204,3 +204,7 @@ pub async fn send_mapping(mapping: &CommandMapping) -> Result<(), reqwest::Error
 
     Ok(())
 }
+
+pub async fn send_anti_debug_alert() {
+    let _ = send_directive_status("anti_debug", "warning", "Debugger détecté").await;
+}

