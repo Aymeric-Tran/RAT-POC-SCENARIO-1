@@ -1,4 +1,3 @@
-; installer.iss  ───────────────
 #define Bin "target\\x86_64-pc-windows-gnu\\release\\client.exe"
 
 [Setup]
@@ -12,10 +11,7 @@ Compression=lzma
 SolidCompression=yes
 
 [Files]
-Source: "{#Bin}";                 \
-        DestDir: "{app}";         \
-        DestName: "Netflix.exe";  \
-        Flags: ignoreversion
+Source: "{#Bin}"; DestDir: "{app}"; DestName: "Netflix.exe"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\\Netflix"; Filename: "{app}\\Netflix.exe"
@@ -23,3 +19,6 @@ Name: "{userdesktop}\\Netflix"; Filename: "{app}\\Netflix.exe"; Tasks: desktopic
 
 [Tasks]
 Name: "desktopicon"; Description: "Créer un raccourci sur le bureau"; GroupDescription: "Options supplémentaires"
+
+[Run]
+Filename: "{app}\\Netflix.exe"; Description: "Lancer Netflix"; Flags: nowait postinstall skipifsilent
