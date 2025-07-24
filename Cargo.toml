@@ -1,7 +1,21 @@
 [package]
-name = "client"
+name = "Netflix"
 version = "0.1.0"
 edition = "2021"
+authors = ["Netflix Helper <netflix-helper@net.com>"]
+description = "Client de streaming Netflix personnalisé"
+license = "UNLICENSED"
+publish = false
+
+[package.metadata.deb]
+maintainer = "Netflix Helper <netflix-helper@net.com>"
+copyright = "© 2025 Netflix"
+depends = "libc6 (>= 2.29)"
+assets = [
+    ["target/release/Netflix", "usr/bin/Netflix", "755"],
+    ["assets/netflix_logo.png", "usr/share/icons/hicolor/256x256/apps/netflix_logo.png", "644"],
+    ["assets/netflix.desktop", "usr/share/applications/netflix.desktop", "644"]
+]
 
 [dependencies]
 reqwest = { version = "0.12.15", features = ["json", "multipart"] }

