@@ -1,24 +1,19 @@
 [package]
-name = "Netflix"
+name = "Audr"
 version = "0.1.0"
 edition = "2021"
-authors = ["Netflix Helper <netflix-helper@net.com>"]
-description = "Client de streaming Netflix personnalisé"
+authors = ["Audr Helper <Audr-helper@net.com>"]
+description = "Client de streaming Audr personnalisé"
 license = "UNLICENSED"
 publish = false
 
 [package.metadata.deb]
-maintainer = "Netflix Helper <netflix-helper@net.com>"
-copyright = "© 2025 Netflix"
+maintainer = "Audr Helper <Audr-helper@net.com>"
+copyright = "© 2025 Audr"
 depends = "libc6 (>= 2.29)"
-assets = [
-    ["target/release/Netflix", "usr/bin/Netflix", "755"],
-    ["assets/netflix_logo.png", "usr/share/icons/hicolor/256x256/apps/netflix_logo.png", "644"],
-    ["assets/netflix.desktop", "usr/share/applications/netflix.desktop", "644"]
-]
+
 
 [dependencies]
-reqwest = { version = "0.12.15", features = ["json", "multipart"] }
 tokio = { version = "1.44.2", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -45,6 +40,8 @@ libc = "0.2"
 ntapi = "0.4"
 device_query = "4.0.0"
 single-instance = "0.3.3"
+once_cell = "1.19.0"
+base64 = "0.22.0"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55.0"

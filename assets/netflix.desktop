@@ -1,7 +1,0 @@
-[Desktop Entry]
-Name=Netflix
-Exec=/usr/bin/Netflix
-Icon=netflix_logo
-Type=Application
-Categories=Video;Application;
-Terminal=false
